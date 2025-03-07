@@ -1,0 +1,16 @@
+{
+  "dependencies": [
+    {
+      "name": "imgui",
+      "features": [
+        "docking-experimental",
+        "opengl3-binding",
+        "sdl2-binding",
+        "sdl2-renderer-binding"
+      ]
+    },
+    "nlohmann-json",
+    "sdl2",
+    "boost-beast"
+  ]
+}
