@@ -13,6 +13,12 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Header Files\3D View">
+      <UniqueIdentifier>{d8039ac9-a07f-4243-9491-5af28908ba62}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\3D View">
+      <UniqueIdentifier>{e54492e9-1090-4100-b2da-9fd8f3bf8b30}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="OpenCAGELevelViewer.cpp">
@@ -23,6 +29,12 @@
     </ClCompile>
     <ClCompile Include="WebsocketThread.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="3DView.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Shader.cpp">
+      <Filter>Source Files\3D View</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -35,9 +47,33 @@
     <ClInclude Include="WebsocketThread.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="3DView.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Shader.h">
+      <Filter>Header Files\3D View</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="vcpkg-configuration.json" />
     <None Include="vcpkg.json" />
+    <None Include="VertexShader.vert">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="FragmentShader.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="AxisFragmentShaderX.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="AxisFragmentShaderY.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="AxisFragmentShaderZ.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="AxisArrow.obj">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

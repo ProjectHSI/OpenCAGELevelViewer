@@ -1,5 +1,8 @@
 {
   "dependencies": [
+    "boost-beast",
+    "glbinding",
+    "glm",
     {
       "name": "imgui",
       "features": [
@@ -11,6 +14,6 @@
     },
     "nlohmann-json",
     "sdl2",
-    "boost-beast"
+    "assimp"
   ]
 }

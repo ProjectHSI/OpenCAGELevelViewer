@@ -103,7 +103,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
+      <WarningLevel>EnableAllWarnings</WarningLevel>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
@@ -135,18 +135,40 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="3DView.cpp" />
     <ClCompile Include="LevelManager.cpp" />
     <ClCompile Include="OpenCAGELevelViewer.cpp" />
+    <ClCompile Include="Shader.cpp" />
     <ClCompile Include="WebsocketThread.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="3DView.h" />
     <ClInclude Include="LevelManager.h" />
     <ClInclude Include="OpenCAGELevelViewer.h" />
+    <ClInclude Include="Shader.h" />
     <ClInclude Include="WebsocketThread.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="AxisFragmentShaderX.frag">
+      <CopyToOutputDirectory>IfDifferent</CopyToOutputDirectory>
+    </None>
+    <None Include="AxisFragmentShaderY.frag">
+      <CopyToOutputDirectory>IfDifferent</CopyToOutputDirectory>
+    </None>
+    <None Include="AxisFragmentShaderZ.frag">
+      <CopyToOutputDirectory>IfDifferent</CopyToOutputDirectory>
+    </None>
+    <None Include="AxisArrow.obj">
+      <CopyToOutputDirectory>IfDifferent</CopyToOutputDirectory>
+    </None>
+    <None Include="FragmentShader.frag">
+      <CopyToOutputDirectory>IfDifferent</CopyToOutputDirectory>
+    </None>
     <None Include="vcpkg-configuration.json" />
     <None Include="vcpkg.json" />
+    <None Include="VertexShader.vert">
+      <CopyToOutputDirectory>IfDifferent</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\OpenCAGELevelViewer.ContentManager\OpenCAGELevelViewer.ContentManager.vcxproj">

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-	<PropertyGroup>
-		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-	</PropertyGroup>
+  <PropertyGroup>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -82,10 +82,11 @@
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <WarningLevel>Level3</WarningLevel>
+      <WarningLevel>EnableAllWarnings</WarningLevel>
       <PreprocessorDefinitions>OpenCAGELevelViewer_ContentManager_EXPORTS;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Link>
       <AdditionalDependencies />
@@ -150,9 +151,12 @@
     <Image Include="app.ico" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="CathodeLib">
-      <Version>0.7.1</Version>
-    </PackageReference>
+    <ProjectReference Include="..\CathodeLib\CathodeLib\CathodeLib.csproj">
+      <Project>{fd00b8ad-c319-5ff0-58ce-acc78d40c0e4}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\OpenCAGELevelViewer.ContentManager.CSManaged\OpenCAGELevelViewer.ContentManager.CSManaged.csproj">
+      <Project>{406dccd5-b0f5-420a-ac34-a3cac9cdc4ed}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
