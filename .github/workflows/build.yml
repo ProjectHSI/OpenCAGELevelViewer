@@ -22,7 +22,7 @@ jobs:
     strategy:
       matrix:
         configuration: [Release, Debug]
-        architecture: [x86, x64, ARM, ARM64]
+        architecture: [x86, x64, ARM64]
 
       fail-fast: false
 
