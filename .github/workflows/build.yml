@@ -15,7 +15,7 @@ env:
   SOLUTION_FILE_PATH: .
 
   OCLV_VCPKG_CACHE_DIR: "C:/vcpkg_cache"
-  VCPKG_BINARY_SOURCES: "clear;files,C:/vcpkg_cache//bin,readwrite"
+  VCPKG_BINARY_SOURCES: "clear;files,C:/vcpkg_cache/bin,readwrite"
   X_VCPKG_ASSET_SOURCES: "clear;x-azurl,file://C:/vcpkg_cache/assets,,readwrite"
 
 permissions:
