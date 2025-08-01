@@ -14,7 +14,10 @@ env:
   # Path to the solution file relative to the root of the project.
   SOLUTION_FILE_PATH: .
 
-  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  OCLV_VCPKG_CACHE_DIR: "${{env.GITHUB_WORKSPACE}}/vcpkg_cache"
+  VCPKG_BINARY_SOURCES: "clear;files,${{env.OCLV_VCPKG_CACHE_DIR}}/bin,readwrite"
+  X_VCPKG_ASSET_SOURCES: "clear;x-azurl,file:///${{env.OCLV_VCPKG_CACHE_DIR}}/assets,,readwrite"
+  #VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
 
 permissions:
   contents: read
@@ -31,13 +34,11 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - name: Export GitHub Actions cache environment variables
-      uses: actions/github-script@v7
+    - name: Cache vcpkg
+      uses: actions/cache@v4
       with:
-        script: |
-          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-
+        path: ${{env.OCLV_VCPKG_CACHE_DIR}}
+        key: vcpkg-${{matrix.configuration}}-${{matrix.architecture}}
 
     - uses: actions/checkout@v4
 
