@@ -14,9 +14,9 @@ env:
   # Path to the solution file relative to the root of the project.
   SOLUTION_FILE_PATH: .
 
-  OCLV_VCPKG_CACHE_DIR: "./vcpkg_cache"
-  VCPKG_BINARY_SOURCES: "clear;files,./vcpkg_cache//bin,readwrite"
-  X_VCPKG_ASSET_SOURCES: "clear;x-azurl,file://./vcpkg_cache/assets,,readwrite"
+  OCLV_VCPKG_CACHE_DIR: "C:/vcpkg_cache"
+  VCPKG_BINARY_SOURCES: "clear;files,C:/vcpkg_cache//bin,readwrite"
+  X_VCPKG_ASSET_SOURCES: "clear;x-azurl,file://C:/vcpkg_cache/assets,,readwrite"
 
 permissions:
   contents: read
@@ -38,6 +38,11 @@ jobs:
       with:
         path: ${{env.OCLV_VCPKG_CACHE_DIR}}
         key: vcpkg-${{matrix.configuration}}-${{matrix.architecture}}
+
+    - name: Create vcpkg Cache Directories
+      run: |
+        mkdir -p ${{env.OCLV_VCPKG_CACHE_DIR}}/bin
+        mkdir -p ${{env.OCLV_VCPKG_CACHE_DIR}}/assets
 
     - uses: actions/checkout@v4
 
