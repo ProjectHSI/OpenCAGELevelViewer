@@ -15,7 +15,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\CathodeLib\CathodeLib\CathodeLib.csproj" />
+    <PackageReference Include="CathodeLib" Version="0.9.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OpenCAGELevelViewer.Utilities\OpenCAGELevelViewer.Utilities.vcxproj" />
   </ItemGroup>
 
 </Project>

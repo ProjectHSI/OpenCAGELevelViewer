@@ -78,8 +78,11 @@ static void updateProgress(OpenCAGELevelViewer::ContentManager::ContentManagerSt
 //	double z;
 //};
 
+#define MarshalCliString(cliString) msclr_context->marshal_as<const char *>(cliString)
+#define ConvertCliStringToCXXString(cliString) std::string(MarshalCliString(cliString))
+
 static inline void updateCompositeParse(CATHODE::Scripting::Composite ^composite) {
-	updateProgress({OpenCAGELevelViewer::ContentManager::ContentManagerStateEnum::LOADING_COMPOSITE, -1, std::string("Parsing composite ") + (msclr_context->marshal_as<const char *>(composite->shortGUID.ToString())) + "..."});
+	updateProgress({OpenCAGELevelViewer::ContentManager::ContentManagerStateEnum::LOADING_COMPOSITE, -1, std::string("Parsing composite ") + MarshalCliString(composite->shortGUID.ToString()) + "..."});
 }
 
 //System::Numerics::Vector3<> Vector3<>zero = System::Numerics::Vector3<>(0, 0, 0);
@@ -179,6 +182,8 @@ static OpenCAGELevelViewer::ContentManager::UnmanagedModelReference::ModelStorag
 		modelStorage.indices.push_back(index);
 	}
 
+	modelStorage.id = renderableElement->ModelIndex;
+
 	return modelStorage;
 }
 
@@ -187,14 +192,6 @@ static void parseModelReferenceWithRenderable(OpenCAGELevelViewer::ContentManage
 
 	//switch (resourceType) {
 	//	case ResourceType::RENDERABLE_INSTANCE:
-			/*
-			This is some complete insanity.
-
-			For some reason - Matt Filer decided not to pre-parse the geometry of an CS2 mesh from a binary format to... anything code-structure wise.
-			This means we have to manually parse the data.
-			If possible I would like to not use C#'s BinaryReadder and other things.
-			So we'll just parse this manually.
-			*/
 	{
 		int modelIndex = renderableElement->ModelIndex;
 
@@ -210,6 +207,12 @@ static void parseModelReferenceWithRenderable(OpenCAGELevelViewer::ContentManage
 
 			//modelCache[renderableElement->ModelIndex] 
 	//}
+}
+
+// Matt Filer does some weird stuff everytime.
+// This abstracts that so it's easier to port between versions of CATHODELib.
+static bool isFunctionEntityCompositeInstance(const LevelContent ^levelContent, const CATHODE::Scripting::FunctionEntity ^functionEntity) {
+	return (levelContent->CommandsPAK->GetComposite(functionEntity->function) != nullptr);
 }
 
 static OpenCAGELevelViewer::ContentManager::UnmanagedComposite parseComposite(CATHODE::Scripting::Composite ^composite, OpenCAGELevelViewer::ContentManager::Transform parentTransform, List<AliasEntity ^> ^aliases/*, std::optional<OpenCAGELevelViewer::ContentManager::UnmanagedComposite &> unmanagedComposite = {}*/) {
@@ -230,7 +233,7 @@ static OpenCAGELevelViewer::ContentManager::UnmanagedComposite parseComposite(CA
 	aliases = trimmedAliases;
 
 	for each (CATHODE::Scripting::FunctionEntity ^functionEntity in composite->functions->ToArray()) {
-		if (!CommandsUtils::FunctionTypeExists(functionEntity->function)) {
+		if (isFunctionEntityCompositeInstance(levelContentInstance, functionEntity)) {
 			Composite ^compositeNext = levelContentInstance->CommandsPAK->GetComposite(functionEntity->function);
 			if (compositeNext != nullptr) {
 				//Find all overrides that are appropriate to take through to the next composite
@@ -247,7 +250,7 @@ static OpenCAGELevelViewer::ContentManager::UnmanagedComposite parseComposite(CA
 					GetEntityTransform(functionEntity, newTransform);
 
 				newUnmanagedComposite.unmanagedCompositeChildren.push_back(parseComposite(compositeNext, newTransform, overridesNext/*, newUnmanagedComposite*/));
-				newUnmanagedComposite.unmanagedCompositeChildren[newUnmanagedComposite.unmanagedCompositeChildren.size() - 1].name = std::string(msclr_context->marshal_as<const char *>(EntityUtils::GetName(composite->shortGUID, functionEntity->shortGUID)));
+				newUnmanagedComposite.unmanagedCompositeChildren[newUnmanagedComposite.unmanagedCompositeChildren.size() - 1].name = std::string(msclr_context->marshal_as<const char *>(levelContentInstance->CommandsPAK->Utils->GetEntityName(composite->shortGUID, functionEntity->shortGUID)));
 				updateCompositeParse(composite);
 
 				//Continue
@@ -264,11 +267,11 @@ static OpenCAGELevelViewer::ContentManager::UnmanagedComposite parseComposite(CA
 			}
 		} else {
 		#pragma warning(disable: 4061)
-			switch (CommandsUtils::GetFunctionType(functionEntity->function)) {
+			switch (functionEntity->function.AsFunctionType) {
 				case FunctionType::ModelReference:
 					{
 						OpenCAGELevelViewer::ContentManager::UnmanagedModelReference unmanagedModelReference;
-						unmanagedModelReference.name = std::string(msclr_context->marshal_as<const char *>(EntityUtils::GetName(composite->shortGUID, functionEntity->shortGUID)));
+						unmanagedModelReference.name = ConvertCliStringToCXXString(levelContentInstance->CommandsPAK->Utils->GetEntityName(composite->shortGUID, functionEntity->shortGUID));
 
 						OpenCAGELevelViewer::ContentManager::Transform newTransform;
 						newTransform.parent = &newUnmanagedComposite.transform;
@@ -283,7 +286,7 @@ static OpenCAGELevelViewer::ContentManager::UnmanagedComposite parseComposite(CA
 							switch (resourceParam->content->dataType) {
 								case DataType::RESOURCE:
 									cResource ^resource = dynamic_cast< cResource ^ >(resourceParam->content);
-									for each (ResourceReference ^resourceRef in resource->value) {
+									for each (ResourceReference ^resourceRef in resource->shortGUID.) {
 										for (int i = 0; i < resourceRef->count; i++) {
 											RenderableElements::Element ^renderable = levelContentInstance->RenderableREDS->Entries[resourceRef->index + i];
 											switch (resourceRef->resource_type) {
@@ -426,9 +429,11 @@ levelContentInstance->VarName = gcnew CSType(gcnew String(/*utf8Converter.from_b
 				//std::this_thread::sleep_for(std::chrono::seconds(2));
 
 				updateProgress({READY, 0, ""});
+
+				contentManagerContext.newCompositeLoaded.test_and_set();
 			}
 		}
 	}
 }
 
-//OpenCAGELevelViewer_ContentManager_API void dummy() { }
+OpenCAGELevelViewer_ContentManager_API void dummy() { }

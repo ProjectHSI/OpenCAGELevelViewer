@@ -15,7 +15,7 @@
 
 OpenCAGELevelViewer_ContentManager_API void initalize_contentManager();
 
-//OpenCAGELevelViewer_ContentManager_API void dummy();
+OpenCAGELevelViewer_ContentManager_API void dummy();
 
 namespace OpenCAGELevelViewer {
 	namespace ContentManager {
@@ -122,6 +122,8 @@ namespace OpenCAGELevelViewer {
 			struct ModelStorage {
 				std::vector<Vector3<float>> vertices;
 				std::vector<uint16_t> indices;
+
+				unsigned long long id; // so the host app doesn't have to generate 50 vertex arrays for the same object
 			};
 
 			std::string name;
@@ -144,6 +146,8 @@ namespace OpenCAGELevelViewer {
 		struct ContentManagerContext {
 			ContentManagerState contentManagerState {NO_LEVEL, 0, ""};
 			std::mutex contentManagerStateMutex {};
+
+			std::atomic_flag newCompositeLoaded;
 
 			//std::recursive_mutex 
 

@@ -14,12 +14,14 @@ namespace OpenCAGELevelViewer {
 
 		};*/
 
-		void updateCamera(int32_t x, int32_t y);
-		void updateCamera(signed char x, signed char y, signed char z, signed char roll);
+		//void updateCamera(int32_t x, int32_t y);
+		void updateCamera(signed char x, signed char y, signed char z, signed char roll, int32_t mouseX, int32_t mouseY, float scrollY, float deltaTime);
+		
+		typedef std::variant < OpenCAGELevelViewer::ContentManager::UnmanagedComposite, OpenCAGELevelViewer::ContentManager::UnmanagedModelReference > UsuableUnmanagedObjects;
 
 		void Initalise(void);
-		void UpdateScene(std::optional<std::variant<OpenCAGELevelViewer::ContentManager::UnmanagedModelReference, OpenCAGELevelViewer::ContentManager::UnmanagedComposite>> unmanagedObject);
-		void Render(ImVec2 windowSize, std::optional<std::variant<OpenCAGELevelViewer::ContentManager::UnmanagedModelReference, OpenCAGELevelViewer::ContentManager::UnmanagedComposite>> unmanagedObject);
+		void UpdateScene(std::optional < OpenCAGELevelViewer::_3DView::UsuableUnmanagedObjects > unmanagedObject, std::atomic_flag &isDone);
+		void Render(ImVec2 windowSize/*, std::optional<std::variant<OpenCAGELevelViewer::ContentManager::UnmanagedModelReference, OpenCAGELevelViewer::ContentManager::UnmanagedComposite>> unmanagedObject*/);
 		///void Render(ImVec2 windowSize, std::optional<OpenCAGELevelViewer::ContentManager::UnmanagedModelReference> unmanagedModelReference);
 		void Quit(void);
 	}

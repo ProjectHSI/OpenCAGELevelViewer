@@ -17,12 +17,17 @@
 #include <optional>
 
 #include <assimp/Importer.hpp>
-#include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#include <assimp/scene.h>
 
+#include <exception>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <map>
+#include <variant>
+
+#include <SDL2/SDL.h>
 
 using namespace gl;
 
@@ -68,9 +73,12 @@ unsigned int _3dViewVertexShader;
 unsigned int _3dViewFragmentShader;
 unsigned int _3dViewShaderProgram;
 
-glm::vec3 cameraPos = glm::vec3(5.0f, 0.0f, 50.0f);
+glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
 glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
 glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+
+//glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
+//glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
 
 static Assimp::Importer import;
 
@@ -93,6 +101,7 @@ static void glDebugOutput(GLenum source,
 	std::cout << "---------------" << std::endl;
 	std::cout << "Debug message (" << id << "): " << message << std::endl;
 
+#pragma warning(disable: 4062)
 	switch (source) {
 		case GL_DEBUG_SOURCE_API:             std::cout << "Source: API"; break;
 		case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   std::cout << "Source: Window System"; break;
@@ -120,16 +129,38 @@ static void glDebugOutput(GLenum source,
 		case GL_DEBUG_SEVERITY_LOW:          std::cout << "Severity: low"; break;
 		case GL_DEBUG_SEVERITY_NOTIFICATION: std::cout << "Severity: notification"; break;
 	} std::cout << std::endl;
+#pragma warning(default: 4062)
 	std::cout << std::endl;
 }
 
-void OpenCAGELevelViewer::_3DView::updateCamera(int32_t x, int32_t y) {
+float yaw = -90.0f;
+float pitch = 0.0f;
+float fov = 45.0f;
 
-}
+void OpenCAGELevelViewer::_3DView::updateCamera(signed char x, signed char y, signed char z, signed char roll, int32_t mouseX, int32_t mouseY, float scrollY, float deltaTime) {
+	yaw += mouseX * 0.1;
+	pitch += mouseY * -0.1;
 
-void OpenCAGELevelViewer::_3DView::updateCamera(signed char x, signed char y, signed char z, signed char roll) {
-	cameraPos += (5.0f * cameraFront * static_cast< float >(x));
-	cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * 5.0f * static_cast< float >(y);
+	if (pitch > 89.0f) pitch = 89.0f;
+	else if (pitch < -89.0f) pitch = -89.0f;
+
+	{
+		glm::vec3 front;
+		front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+		front.y = sin(glm::radians(pitch));
+		front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+		cameraFront = glm::normalize(front);
+	}
+
+	cameraPos += ((deltaTime * 5.0f) * cameraFront * static_cast< float >(z));
+	cameraPos += ((deltaTime * 5.0f) * cameraUp * static_cast< float >(-y));
+	cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * (deltaTime * 5.0f) * static_cast< float >(x);
+
+	fov += -scrollY;
+
+	if (fov < 1.0f) fov = 1.0f;
+	else if (fov > 179.0f) fov = 179.0f;
+	//cameraPos += glm::normalize(glm::cross(cameraFront, cameraRight)) * (deltaTime * 5.0f) * static_cast< float >(y);
 }
 
 //ImVec2 previousWindowSize;
@@ -141,12 +172,257 @@ void OpenCAGELevelViewer::_3DView::updateCamera(signed char x, signed char y, si
 //	}
 //}
 
+#pragma region Shader Classes
+class ShaderPart {
+private:
+	GLuint _shader;
+public:
+	ShaderPart(std::string shaderPath, GLenum shaderType) {
+		std::ifstream shaderStream(shaderPath);
+		std::stringstream shader;
+		shader << shaderStream.rdbuf();
+		std::string shaderString = shader.str();
+		const char *shaderCstring = shaderString.c_str();
+		shaderStream.close();
+
+		_shader = glCreateShader(shaderType);
+		glShaderSource(_shader, 1, (&shaderCstring), NULL);
+		glCompileShader(_shader);
+
+		{
+			int success;
+			glGetShaderiv(_shader, GL_COMPILE_STATUS, &success);
+			if (!success) {
+				int length = 0;
+				glGetShaderInfoLog(_shader, 0, &length, nullptr);
+
+				std::string infoLog(length, '\0');
+				glGetShaderInfoLog(_shader, length, nullptr, infoLog.data());
+
+				throw std::exception(infoLog.data());
+
+				//std::cout << infoLog << std::endl;
+			}
+		}
+	}
+
+	ShaderPart(const ShaderPart &) = delete;
+	void operator=(const ShaderPart &) = delete;
+
+	~ShaderPart() {
+		//glDeleteShader(_shader);
+	}
+
+	GLuint getShader() const { return _shader; }
+};
+
+static GLuint createShaderProgram(std::string vertexShaderPath, std::string fragmentShaderPath) {
+	GLuint vertexShader;
+	{
+		std::ifstream vertexShaderStream(vertexShaderPath);
+		std::stringstream vertexShaderStringStream;
+		vertexShaderStringStream << vertexShaderStream.rdbuf();
+		std::string vertexShaderString = vertexShaderStringStream.str();
+		const char *vertexShaderCstring = vertexShaderString.c_str();
+		vertexShaderStream.close();
+
+		vertexShader = glCreateShader(GL_VERTEX_SHADER);
+		glShaderSource(vertexShader, 1, (&vertexShaderCstring), NULL);
+		glCompileShader(vertexShader);
+
+		{
+			int success;
+			glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+			if (!success) {
+				int length = 0;
+				glGetShaderInfoLog(vertexShader, 0, &length, nullptr);
+
+				std::string infoLog(length, '\0');
+				glGetShaderInfoLog(vertexShader, length, nullptr, infoLog.data());
+
+				throw std::exception(infoLog.data());
+
+				//std::cout << infoLog << std::endl;
+			}
+		}
+	}
+
+	GLuint fragmentShader;
+	{
+		std::ifstream fragmentShaderStream(fragmentShaderPath);
+		std::stringstream fragmentShaderStringStream;
+		fragmentShaderStringStream << fragmentShaderStream.rdbuf();
+		std::string fragmentShaderString = fragmentShaderStringStream.str();
+		const char *fragmentShaderCstring = fragmentShaderString.c_str();
+		fragmentShaderStream.close();
+
+		fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+		glShaderSource(fragmentShader, 1, (&fragmentShaderCstring), NULL);
+		glCompileShader(fragmentShader);
+
+		{
+			int success;
+			glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+			if (!success) {
+				int length = 0;
+				glGetShaderInfoLog(fragmentShader, 0, &length, nullptr);
+
+				std::string infoLog(length, '\0');
+				glGetShaderInfoLog(fragmentShader, length, nullptr, infoLog.data());
+
+				throw std::exception(infoLog.data());
+
+				//std::cout << infoLog << std::endl;
+			}
+		}
+	}
+
+	GLuint shaderProgram = glCreateProgram();
+	glAttachShader(shaderProgram, vertexShader);
+	glAttachShader(shaderProgram, fragmentShader);
+	glLinkProgram(shaderProgram);
+
+	{
+		int success;
+		glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+		if (!success) {
+			int length = 0;
+			glGetShaderInfoLog(shaderProgram, 0, &length, nullptr);
+
+			std::string infoLog(length, '\0');
+			glGetShaderInfoLog(shaderProgram, length, nullptr, infoLog.data());
+
+			throw std::exception(infoLog.data());
+
+			//std::cout << infoLog << std::endl;
+		}
+	}
+
+	glDeleteShader(vertexShader);
+	glDeleteShader(fragmentShader);
+
+	return shaderProgram;
+}
+
+//class ShaderProgram {
+//private:
+//	GLuint _program = 0;
+//	bool isInitalised = false;
+//public:
+//	ShaderProgram(std::string vertexShaderPath, std::string fragmentShaderPath) {
+//		GLuint vertexShader;
+//		{
+//			std::ifstream vertexShaderStream(vertexShaderPath);
+//			std::stringstream vertexShaderStringStream;
+//			vertexShaderStringStream << vertexShaderStream.rdbuf();
+//			std::string vertexShaderString = vertexShaderStringStream.str();
+//			const char *vertexShaderCstring = vertexShaderString.c_str();
+//			vertexShaderStream.close();
+//
+//			vertexShader = glCreateShader(GL_VERTEX_SHADER);
+//			glShaderSource(vertexShader, 1, (&vertexShaderCstring), NULL);
+//			glCompileShader(vertexShader);
+//
+//			{
+//				int success;
+//				glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+//				if (!success) {
+//					int length = 0;
+//					glGetShaderInfoLog(vertexShader, 0, &length, nullptr);
+//
+//					std::string infoLog(length, '\0');
+//					glGetShaderInfoLog(vertexShader, length, nullptr, infoLog.data());
+//
+//					throw std::exception(infoLog.data());
+//
+//					//std::cout << infoLog << std::endl;
+//				}
+//			}
+//		}
+//
+//		GLuint fragmentShader;
+//		{
+//			std::ifstream fragmentShaderStream(fragmentShaderPath);
+//			std::stringstream fragmentShaderStringStream;
+//			fragmentShaderStringStream << fragmentShaderStream.rdbuf();
+//			std::string fragmentShaderString = fragmentShaderStringStream.str();
+//			const char *fragmentShaderCstring = fragmentShaderString.c_str();
+//			fragmentShaderStream.close();
+//
+//			fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+//			glShaderSource(fragmentShader, 1, (&fragmentShaderCstring), NULL);
+//			glCompileShader(fragmentShader);
+//
+//			{
+//				int success;
+//				glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+//				if (!success) {
+//					int length = 0;
+//					glGetShaderInfoLog(fragmentShader, 0, &length, nullptr);
+//
+//					std::string infoLog(length, '\0');
+//					glGetShaderInfoLog(fragmentShader, length, nullptr, infoLog.data());
+//
+//					throw std::exception(infoLog.data());
+//
+//					//std::cout << infoLog << std::endl;
+//				}
+//			}
+//		}
+//
+//		_program = glCreateProgram();
+//		glAttachShader(_program, vertexShader);
+//		glAttachShader(_program, fragmentShader);
+//		glLinkProgram(_program);
+//
+//		{
+//			int success;
+//			glGetProgramiv(_program, GL_LINK_STATUS, &success);
+//			if (!success) {
+//				int length = 0;
+//				glGetShaderInfoLog(_program, 0, &length, nullptr);
+//
+//				std::string infoLog(length, '\0');
+//				glGetShaderInfoLog(_program, length, nullptr, infoLog.data());
+//
+//				throw std::exception(infoLog.data());
+//
+//				//std::cout << infoLog << std::endl;
+//			}
+//		}
+//
+//		glDeleteShader(vertexShader);
+//		glDeleteShader(fragmentShader);
+//
+//		isInitalised = true;
+//	}
+//
+//	ShaderProgram() { }
+//
+//	ShaderProgram(const ShaderProgram &) = delete;
+//	//void operator=(const ShaderProgram &) = delete;
+//
+//	~ShaderProgram() {
+//		glDeleteProgram(_program);
+//	}
+//
+//	GLuint getProgram() { assert(isInitalised); return _program; }
+//};
+#pragma endregion
+
+GLuint baseProgram;
+GLuint axisXProgram;
+GLuint axisYProgram;
+GLuint axisZProgram;
+
 void OpenCAGELevelViewer::_3DView::Initalise(void) {
 	glEnable(GL_DEBUG_OUTPUT);
 	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 
 	glDebugMessageCallback(glDebugOutput, nullptr);
 	glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
+
+	//glEnable(GL_CULL_FACE);
 
 #pragma region Framebuffer Initalisation
 	// OpenGL requires us to pass a resolution for the render buffer and texture.
@@ -179,75 +455,12 @@ void OpenCAGELevelViewer::_3DView::Initalise(void) {
 #pragma endregion
 
 #pragma region Shader Setup
-	std::ifstream vertexShaderStream("VertexShader.vert");
-	std::stringstream vertexShader;
-	vertexShader << vertexShaderStream.rdbuf();
-	std::string vertexShaderString = vertexShader.str();
-	const char *vertexShaderCstring = vertexShaderString.c_str();
-
-	_3dViewVertexShader = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(_3dViewVertexShader, 1, (&vertexShaderCstring), NULL);
-	glCompileShader(_3dViewVertexShader);
-
 	{
-		int success;
-		glGetShaderiv(_3dViewVertexShader, GL_COMPILE_STATUS, &success);
-		if (!success) {
-			int length = 0;
-			glGetShaderInfoLog(_3dViewVertexShader, 0, &length, nullptr);
-
-			std::string infoLog(length, '\0');
-			glGetShaderInfoLog(_3dViewVertexShader, length, nullptr, infoLog.data());
-
-			std::cout << infoLog << std::endl;
-		}
+		baseProgram = createShaderProgram("VertexShader.vert", "FragmentShader.frag");
+		axisXProgram = createShaderProgram("VertexShader.vert", "AxisFragmentShaderX.frag");
+		axisYProgram = createShaderProgram("VertexShader.vert", "AxisFragmentShaderY.frag");
+		axisZProgram = createShaderProgram("VertexShader.vert", "AxisFragmentShaderZ.frag");
 	}
-
-	std::ifstream fragmentShaderStream("FragmentShader.frag");
-	std::stringstream fragmentShader;
-	fragmentShader << fragmentShaderStream.rdbuf();
-	std::string fragmentShaderString = fragmentShader.str();
-	const char *fragmentShaderCstring = fragmentShaderString.c_str();
-
-	_3dViewFragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(_3dViewFragmentShader, 1, &fragmentShaderCstring, NULL);
-	glCompileShader(_3dViewFragmentShader);
-
-	{
-		int success;
-		glGetShaderiv(_3dViewFragmentShader, GL_COMPILE_STATUS, &success);
-		if (!success) {
-			int length = 0;
-			glGetShaderInfoLog(_3dViewFragmentShader, 0, &length, nullptr);
-
-			std::string infoLog(length, '\0');
-			glGetShaderInfoLog(_3dViewFragmentShader, length, nullptr, infoLog.data());
-
-			std::cout << infoLog << std::endl;
-		}
-	}
-
-	_3dViewShaderProgram = glCreateProgram();
-	glAttachShader(_3dViewShaderProgram, _3dViewVertexShader);
-	glAttachShader(_3dViewShaderProgram, _3dViewFragmentShader);
-	glLinkProgram(_3dViewShaderProgram);
-
-	{
-		int success;
-		glGetProgramiv(_3dViewShaderProgram, GL_LINK_STATUS, &success);
-		if (!success) {
-			int length = 0;
-			glGetShaderInfoLog(_3dViewShaderProgram, 0, &length, nullptr);
-
-			std::string infoLog(length, '\0');
-			glGetShaderInfoLog(_3dViewShaderProgram, length, nullptr, infoLog.data());
-
-			std::cout << infoLog << std::endl;
-		}
-	}
-
-	glDeleteShader(_3dViewVertexShader);
-	glDeleteShader(_3dViewFragmentShader);
 #pragma endregion
 
 #pragma region Triangle Test Setup
@@ -332,38 +545,177 @@ void OpenCAGELevelViewer::_3DView::Initalise(void) {
 #pragma endregion
 
 	glEnable(GL_DEPTH_TEST);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 #pragma region Scene Management
-struct SceneObject {
-	GLuint vertexArrayObject;
+struct ParsedModel {
+	GLuint vertexArrayObject = 0;
 
-	GLuint vertexBufferObject;
-	GLuint elementBufferObject;
+	GLuint vertexBufferObject = 0;
+	GLuint elementBufferObject = 0;
+	size_t elementCount = 0;
 
-	GLuint shader;
-	OpenCAGELevelViewer::ContentManager::Transform absoluteTransform; // This shouldn't have any parent - this should be the absolute transform of the object.
+	GLuint shaderProgram = 0;
+
+	//glm::mat4 modelTransform;
 };
 
-void OpenCAGELevelViewer::_3DView::UpdateScene(std::optional<std::variant<OpenCAGELevelViewer::ContentManager::UnmanagedModelReference, OpenCAGELevelViewer::ContentManager::UnmanagedComposite>> unmanagedObject) {
+//std::map < OpenCAGELevelViewer::ContentManager::UnmanagedComposite *, ExtendedComposite > sceneComposites;
+//std::map < OpenCAGELevelViewer::ContentManager::UnmanagedModelReference *, ExtendedModelReference > sceneModelReferences;
 
+//std::map<U>
+
+struct ExtendedComposite {
+	OpenCAGELevelViewer::ContentManager::UnmanagedComposite *baseUnmanagedComposite;
+	glm::mat4 absoluteTransform;
+};
+
+struct ExtendedModelReference : public OpenCAGELevelViewer::ContentManager::UnmanagedModelReference {
+	OpenCAGELevelViewer::ContentManager::UnmanagedModelReference *baseUnmanagedModelReference;
+	glm::mat4 absoluteTransform;
+};
+
+//struct ExtendedModelReference {
+	//glm::mat4 absolute
+//};
+
+std::map<unsigned long long, ParsedModel> parsedCs2Models;
+
+std::optional < OpenCAGELevelViewer::_3DView::UsuableUnmanagedObjects > _3dViewSelectedUnmanagedObject;
+
+void OpenCAGELevelViewer::_3DView::UpdateScene(std::optional < OpenCAGELevelViewer::_3DView::UsuableUnmanagedObjects > unmanagedObject, std::atomic_flag &isDone) {
+	for (auto &sceneModel : parsedCs2Models) {
+		glDeleteBuffers(2, &sceneModel.second.vertexBufferObject); // ebo is sure to come after this, so we can do this
+		glDeleteVertexArrays(1, &sceneModel.second.vertexArrayObject);
+	}
+
+	parsedCs2Models.clear();
+
+	//rootSceneComposite = SceneComposite(); //delete everything
+
+	_3dViewSelectedUnmanagedObject.reset();
+
+	std::map<unsigned long long, ParsedModel> newParsedCs2Models;
+
+	std::function<ParsedModel(OpenCAGELevelViewer::ContentManager::UnmanagedModelReference::ModelStorage &, const glm::mat4 &)> parseModel = [](OpenCAGELevelViewer::ContentManager::UnmanagedModelReference::ModelStorage &modelStorage, const glm::mat4 &currentAbsoluteTransform) {
+		ParsedModel parsedModel;
+
+		//while (true) {
+			//auto glError = glGetError();
+
+			//if (glError == GL_NO_ERROR) {
+			//	break;
+			//}
+		//}
+
+		//GLuint vao = 0;
+		glGenVertexArrays(1, &parsedModel.vertexArrayObject);
+
+		//auto aew = glGetError();
+
+		//parsedModel.vertexArrayObject = vao;
+
+		//if (parsedModel.vertexArrayObject == -1) {
+			//auto a = glGetError();
+
+			//__debugbreak();
+		//}
+
+		glGenBuffers(1, &parsedModel.vertexBufferObject);
+		glGenBuffers(1, &parsedModel.elementBufferObject);
+
+		glBindVertexArray(parsedModel.vertexArrayObject);
+
+		glBindBuffer(GL_ARRAY_BUFFER, parsedModel.vertexBufferObject);
+		glBufferData(GL_ARRAY_BUFFER, modelStorage.vertices.size() * sizeof(OpenCAGELevelViewer::ContentManager::Vector3<float>), modelStorage.vertices.data(), GL_STATIC_DRAW);
+
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, parsedModel.elementBufferObject);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, modelStorage.indices.size() * sizeof(uint16_t), modelStorage.indices.data(), GL_STATIC_DRAW);
+		parsedModel.elementCount = modelStorage.indices.size();
+
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(OpenCAGELevelViewer::ContentManager::Vector3<float>), ( void * ) 0);
+		glEnableVertexAttribArray(0);
+
+		glBindVertexArray(0);
+
+		parsedModel.shaderProgram = baseProgram;
+
+		//parsedModel.modelTransform = currentAbsoluteTransform;
+
+		return parsedModel;
+	};
+
+	//std::function<void(OpenCAGELevelViewer::ContentManager::UnmanagedComposite &, const glm::mat4 &)> parseComposite;
+	//
+	//parseComposite = [&parseModel, &parseComposite, &newParsedCs2Models](OpenCAGELevelViewer::ContentManager::UnmanagedComposite &unmanagedComposite, const glm::mat4 &currentAbsoluteTransform) {
+	//	//glm::mat4 absoluteTransformForComposite 
+
+	//	for (auto &unmanagedComposite : unmanagedComposite.unmanagedCompositeChildren) {
+	//		parseComposite(unmanagedComposite);
+	//	}
+
+	//	for (auto &unmanagedEntity : unmanagedComposite.unmanagedEntityChildren) {
+	//		if (std::holds_alternative< OpenCAGELevelViewer::ContentManager::UnmanagedModelReference >(unmanagedEntity)) {
+	//			auto unmanagedModelReference = std::get< OpenCAGELevelViewer::ContentManager::UnmanagedModelReference >(unmanagedEntity);
+
+	//			if (unmanagedModelReference.model.has_value() && !newParsedCs2Models.contains(unmanagedModelReference.model->id)) {
+	//				newParsedCs2Models[unmanagedModelReference.model->id] = parseModel(*unmanagedModelReference.model);
+	//			}
+
+	//			//if (unmanagedModelReference.model->id)
+	//		}
+	//	}
+	//	};
+
+	//if (unmanagedObject.has_value()) {
+	//	if (std::holds_alternative< OpenCAGELevelViewer::ContentManager::UnmanagedModelReference >(*unmanagedObject)) {
+	//		parsedCs2Models[std::get< OpenCAGELevelViewer::ContentManager::UnmanagedModelReference >(*unmanagedObject).model->id] = parseModel(*std::get< OpenCAGELevelViewer::ContentManager::UnmanagedModelReference >(*unmanagedObject).model, glm::mat4(1.0f));
+	//	} else {
+	//		parseComposite(std::get< OpenCAGELevelViewer::ContentManager::UnmanagedComposite >(*unmanagedObject), glm::mat4(1.0f));
+	//	}
+	//}
+
+	//parsedCs2Models = newParsedCs2Models;
+
+	//_3dViewSelectedUnmanagedObject = unmanagedObject;
+	////_3dViewSelectedUnmanagedObject.value() = unmanagedObject.value();
+
+	//isDone.test_and_set();
+
+	//std::function<void(SceneComposite)> processSceneComposite;
+
+	//processSceneComposite = [processSceneComposite](SceneComposite sceneComposite) {
+	//	for (auto &sceneObject : sceneComposite.sceneObjects) {
+	//		glDeleteBuffers(2, &sceneObject.sceneModel.vertexBufferObject); // ebo is sure to come after this
+	//		glDeleteVertexArrays(1, &sceneObject.sceneModel.vertexArrayObject);
+	//	}
+	//	for (auto &sceneComposite : sceneComposite.sceneComposites) {
+	//		processSceneComposite(sceneComposite);
+	//	}
+	//};
+
+	//for (auto &sceneComposite : rootSceneComposite.sceneComposites) {
+	//	sceneComposite.
+	//};
 }
 #pragma endregion
 
 static void renderUnmanagedModelStorage(OpenCAGELevelViewer::ContentManager::UnmanagedModelReference::ModelStorage modelStorage) {
-
+	
 }
 
 static void renderUnmanagedModelReference(OpenCAGELevelViewer::ContentManager::UnmanagedModelReference unmanangedModelReference) {
 
 }
 
-void OpenCAGELevelViewer::_3DView::Render(ImVec2 windowSize, std::optional<std::variant<OpenCAGELevelViewer::ContentManager::UnmanagedModelReference, OpenCAGELevelViewer::ContentManager::UnmanagedComposite>> unmanagedModelReference/*, int msaaSamples*/) {
+void OpenCAGELevelViewer::_3DView::Render(ImVec2 windowSize/*, std::optional<std::variant<OpenCAGELevelViewer::ContentManager::UnmanagedModelReference, OpenCAGELevelViewer::ContentManager::UnmanagedComposite>> unmanagedModelReference*//*, int msaaSamples*/) {
 #pragma region Rendering Start
 	glBindFramebuffer(GL_FRAMEBUFFER, _3dViewRenderFbo);
 
 	// update the texture size to correspond to the window
-	glBindTexture(GL_TEXTURE_2D, _3dViewRenderFboTextureColorbuffer);
+	//glBindTexture(GL_TEXTURE_2D, _3dViewRenderFboTextureColorbuffer);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, static_cast< GLsizei >(windowSize.x), static_cast< GLsizei >(windowSize.y), 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 	//glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, pow(2, msaaSamples), GL_RGB, static_cast< GLsizei >(windowSize.x), static_cast< GLsizei >(windowSize.y), GL_TRUE);
 	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, static_cast< GLsizei >(windowSize.x), static_cast< GLsizei >(windowSize.y));
@@ -372,9 +724,12 @@ void OpenCAGELevelViewer::_3DView::Render(ImVec2 windowSize, std::optional<std::
 	//glBindFramebuffer(GL_FRAMEBUFFER, _3dViewOutputFbo);
 	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, static_cast< GLsizei >(windowSize.x), static_cast< GLsizei >(windowSize.y), 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 
-	glBindFramebuffer(GL_FRAMEBUFFER, _3dViewRenderFbo);
+	//glBindFramebuffer(GL_FRAMEBUFFER, _3dViewRenderFbo);
 
 	//glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	//glPolygonMode(GL_FRONT, GL_FILL);
+	//glPolygonMode(GL_BACK, GL_LINE);
 
 	glViewport(0, 0, static_cast< GLsizei >(windowSize.x), static_cast< GLsizei >(windowSize.y));
 	//glViewport(0, 0, 1600, 1200);
@@ -382,7 +737,7 @@ void OpenCAGELevelViewer::_3DView::Render(ImVec2 windowSize, std::optional<std::
 	glClearColor(0.2f, 0.3f, 0.3f, 0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	glm::mat4 projection = glm::perspective(glm::radians(45.0f), ( float ) windowSize.x / ( float ) windowSize.y, 0.1f, 100.0f);
+	glm::mat4 projection = glm::perspective(glm::radians(fov), ( float ) windowSize.x / ( float ) windowSize.y, 0.1f, 100.0f);
 	glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 #pragma endregion
 
@@ -411,15 +766,95 @@ void OpenCAGELevelViewer::_3DView::Render(ImVec2 windowSize, std::optional<std::
 		//glDrawElements(GL_TRIANGLES, unmanagedModelReference->model->indices.size(), GL_UNSIGNED_INT, 0);
 	#pragma endregion
 
+#pragma region Scene Drawing
+	auto &localParsedCs2Models = parsedCs2Models;
+
+	std::function<void(const OpenCAGELevelViewer::ContentManager::UnmanagedModelReference &, const glm::mat4 &)> renderModelReference;
+
+	renderModelReference = [&localParsedCs2Models, &projection, &view](const OpenCAGELevelViewer::ContentManager::UnmanagedModelReference &unmanagedModelReference, const glm::mat4 &currentAbsoluteTransform) {
+		if (!unmanagedModelReference.model.has_value())
+			return;
+
+		glm::mat4 absoluteTransformForEntity = glm::translate(currentAbsoluteTransform, glm::vec3(unmanagedModelReference.transform.position.x, unmanagedModelReference.transform.position.y, unmanagedModelReference.transform.position.z));
+		absoluteTransformForEntity = glm::rotate(absoluteTransformForEntity, glm::radians(static_cast< float >(unmanagedModelReference.transform.rotation.x)), glm::vec3(1.0f, 0.0f, 0.0f));
+		absoluteTransformForEntity = glm::rotate(absoluteTransformForEntity, glm::radians(static_cast< float >(unmanagedModelReference.transform.rotation.y)), glm::vec3(0.0f, 1.0f, 0.0f));
+		absoluteTransformForEntity = glm::rotate(absoluteTransformForEntity, glm::radians(static_cast< float >(unmanagedModelReference.transform.rotation.z)), glm::vec3(0.0f, 0.0f, 1.0f));
+
+		glBindVertexArray(localParsedCs2Models[unmanagedModelReference.model->id].vertexArrayObject);
+
+		glUseProgram(localParsedCs2Models[unmanagedModelReference.model->id].shaderProgram);
+		glUniformMatrix4fv(glGetUniformLocation(axisYProgram, "projection"), 1, GL_FALSE, &projection[0][0]);
+		glUniformMatrix4fv(glGetUniformLocation(axisYProgram, "view"), 1, GL_FALSE, &view[0][0]);
+		glUniformMatrix4fv(glGetUniformLocation(axisYProgram, "model"), 1, GL_FALSE, &absoluteTransformForEntity[0][0]);
+
+		glDrawElements(GL_TRIANGLES, localParsedCs2Models[unmanagedModelReference.model->id].elementCount, GL_UNSIGNED_INT, 0);
+		};
+
+	std::function<void(const OpenCAGELevelViewer::ContentManager::UnmanagedComposite &, const glm::mat4 &)> renderComposite;
+	 
+	renderComposite = [&localParsedCs2Models, &renderModelReference, &renderComposite, &projection, &view](const OpenCAGELevelViewer::ContentManager::UnmanagedComposite &unmanagedComposite, const glm::mat4 &currentAbsoluteTransform) {
+		glm::mat4 absoluteTransformForComposite = glm::translate(currentAbsoluteTransform, glm::vec3(unmanagedComposite.transform.position.x, unmanagedComposite.transform.position.y, unmanagedComposite.transform.position.z));
+		absoluteTransformForComposite = glm::rotate(absoluteTransformForComposite, glm::radians(static_cast< float >(unmanagedComposite.transform.rotation.x)), glm::vec3(1.0f, 0.0f, 0.0f));
+		absoluteTransformForComposite = glm::rotate(absoluteTransformForComposite, glm::radians(static_cast< float >(unmanagedComposite.transform.rotation.y)), glm::vec3(0.0f, 1.0f, 0.0f));
+		absoluteTransformForComposite = glm::rotate(absoluteTransformForComposite, glm::radians(static_cast< float >(unmanagedComposite.transform.rotation.z)), glm::vec3(0.0f, 0.0f, 1.0f));
+
+		for (auto &unmanagedEntity : unmanagedComposite.unmanagedEntityChildren) {
+			if (std::holds_alternative<OpenCAGELevelViewer::ContentManager::UnmanagedModelReference>(unmanagedEntity)) {
+				renderModelReference(std::get<OpenCAGELevelViewer::ContentManager::UnmanagedModelReference>(unmanagedEntity), absoluteTransformForComposite);
+			}
+		}
+
+		for (auto &unmanagedComposite : unmanagedComposite.unmanagedCompositeChildren) {
+			renderComposite(unmanagedComposite, absoluteTransformForComposite);
+		}
+		};
+
+	if (_3dViewSelectedUnmanagedObject.has_value()) {
+		//auto _3dViewSelectedUnmanagedObjectLocal = _3dViewSelectedUnama
+
+		if (std::holds_alternative < OpenCAGELevelViewer::ContentManager::UnmanagedComposite >(_3dViewSelectedUnmanagedObject.value())) {
+			renderComposite(std::get< OpenCAGELevelViewer::ContentManager::UnmanagedComposite >(_3dViewSelectedUnmanagedObject.value()), glm::mat4(1.0f));
+		} else {
+			renderModelReference(std::get< OpenCAGELevelViewer::ContentManager::UnmanagedModelReference >(_3dViewSelectedUnmanagedObject.value()), glm::mat4(1.0f));
+		}
+	}
+#pragma endregion
+
 #pragma region Drawing Axis
-	glBindVertexArray(_3dViewAxisArrowVao);
+	//glDisable(GL_DEPTH_TEST);
 
-	glUseProgram(_3dViewShaderProgram);
-	glUniformMatrix4fv(glGetUniformLocation(_3dViewShaderProgram, "projection"), 1, GL_FALSE, &projection[0][0]);
-	glUniformMatrix4fv(glGetUniformLocation(_3dViewShaderProgram, "view"), 1, GL_FALSE, &view[0][0]);
-	glUniformMatrix4fv(glGetUniformLocation(_3dViewShaderProgram, "model"), 1, GL_FALSE, &(glm::mat4(1.0f))[0][0]);
+	{
+		glBindVertexArray(_3dViewAxisArrowVao);
+		glm::mat4 modelMatrix(1.0f);
+		modelMatrix = glm::scale(modelMatrix, glm::vec3(0.3f));
 
-	glDrawElements(GL_TRIANGLES, _3dViewAxisArrowIndicesCount, GL_UNSIGNED_INT, 0);
+		glUseProgram(axisXProgram);
+		glUniformMatrix4fv(glGetUniformLocation(axisXProgram, "projection"), 1, GL_FALSE, &projection[0][0]);
+		glUniformMatrix4fv(glGetUniformLocation(axisXProgram, "view"), 1, GL_FALSE, &view[0][0]);
+		glUniformMatrix4fv(glGetUniformLocation(axisXProgram, "model"), 1, GL_FALSE, &modelMatrix[0][0]);
+
+		glDrawElements(GL_TRIANGLES, _3dViewAxisArrowIndicesCount, GL_UNSIGNED_INT, 0);
+
+		modelMatrix = glm::rotate(modelMatrix, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, -1.0f));
+
+		glUseProgram(axisYProgram);
+		glUniformMatrix4fv(glGetUniformLocation(axisYProgram, "projection"), 1, GL_FALSE, &projection[0][0]);
+		glUniformMatrix4fv(glGetUniformLocation(axisYProgram, "view"), 1, GL_FALSE, &view[0][0]);
+		glUniformMatrix4fv(glGetUniformLocation(axisYProgram, "model"), 1, GL_FALSE, &modelMatrix[0][0]);
+
+		glDrawElements(GL_TRIANGLES, _3dViewAxisArrowIndicesCount, GL_UNSIGNED_INT, 0);
+
+		modelMatrix = glm::rotate(modelMatrix, glm::radians(90.0f), glm::vec3(-1.0f, 0.0f, 0.0f));
+
+		glUseProgram(axisZProgram);
+		glUniformMatrix4fv(glGetUniformLocation(axisYProgram, "projection"), 1, GL_FALSE, &projection[0][0]);
+		glUniformMatrix4fv(glGetUniformLocation(axisYProgram, "view"), 1, GL_FALSE, &view[0][0]);
+		glUniformMatrix4fv(glGetUniformLocation(axisYProgram, "model"), 1, GL_FALSE, &modelMatrix[0][0]);
+
+		glDrawElements(GL_TRIANGLES, _3dViewAxisArrowIndicesCount, GL_UNSIGNED_INT, 0);
+	}
+
+	//glEnable(GL_DEPTH_TEST);
 
 	//glBindVertexArray(0);
 
