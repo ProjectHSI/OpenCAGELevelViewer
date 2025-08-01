@@ -525,29 +525,26 @@ void OpenCAGELevelViewer::WebsocketThread::main() {
 
 			ConnectSocket.Send(std::vector<char>(testRequest.begin(), testRequest.end()));
 
-			if (ConnectSocket.selectReadable(1s)) {
-				try {
-					std::vector<char> response = ConnectSocket.Recv();
-					std::cout << std::string(response.begin(), response.end()) << std::endl;
-				} catch (OpenCAGELevelViewer::WSockWrapper::WSAError e) {
-					switch (e.code().value()) {
-						case WSAECONNRESET:
-							std::cout << "Connection reset." << std::endl;
-							continue;
-						default:
-							std::cout << "Unaccounted; " << e.code().value() << std::endl;
-
-					}
-				}
-				//char testResponse[512];
-				//recv(ConnectSocket._socket, testResponse, 512, 0);
-				//std::cout << testResponse << std::endl;
-				//continue;
-			} else {
-				__debugbreak();
-			}
+			static thread_local bool didHttpHandshake = false;
 
 			while ((!wasConnected.test() || connected.test()) && willConnect.test()) {
+				OpenCAGELevelViewer::WSockWrapper::SocketStatusBitField status = ConnectSocket.select();
+
+				if (status & OpenCAGELevelViewer::WSockWrapper::SocketStatus::SocketStatus_Readable) {
+					std::vector<char> currentResponse = ConnectSocket.Recv();
+					
+					if (currentResponse.empty()) {
+						__debugbreak();
+					}
+
+					if (!didHttpHandshake) {
+						std::string responseString(currentResponse.begin(), currentResponse.end());
+						std::cout << responseString << std::endl;
+					}
+
+					continue;
+				}
+
 				std::this_thread::yield();
 			}
 
