@@ -61,21 +61,21 @@ jobs:
       run: vcpkg integrate install
 
     - name: Restore NuGet packages
-      working-directory: ${{env.GITHUB_WORKSPACE}}
+      working-directory: ${{ github.workspace }}
       run: nuget restore ${{env.SOLUTION_FILE_PATH}}
 
     - name: Build
-      working-directory: ${{env.GITHUB_WORKSPACE}}
+      working-directory: ${{ github.workspace }}
       # Add additional options to the MSBuild command line here (like platform or verbosity level).
       # See https://docs.microsoft.com/visualstudio/msbuild/msbuild-command-line-reference
       run: msbuild /m /p:Configuration=${{matrix.configuration}} /p:Platform=${{matrix.architecture}} /maxCpuCount /ds:True /v:diag ${{env.SOLUTION_FILE_PATH}}
 
     - name: test
       run: |
-          echo ${{env.GITHUB_WORKSPACE}}
+          echo ${{ github.workspace }}
           ls -Recurse
       
     - uses: actions/upload-artifact@v4
       with:
         name: ${{ github.sha }}-${{matrix.architecture}}-${{matrix.configuration}}
-        path: ${{env.GITHUB_WORKSPACE}}/${{matrix.architecture}}/${{matrix.configuration}}
+        path: ${{ github.workspace }}/${{matrix.architecture}}/${{matrix.configuration}}
