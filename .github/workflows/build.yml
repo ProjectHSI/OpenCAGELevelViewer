@@ -71,7 +71,9 @@ jobs:
       run: msbuild /m /p:Configuration=${{matrix.configuration}} /p:Platform=${{matrix.architecture}} /maxCpuCount /ds:True /v:diag ${{env.SOLUTION_FILE_PATH}}
 
     - name: test
-      run: ls -Recurse
+      run: |
+          echo ${{env.GITHUB_WORKSPACE}}
+          ls -Recurse
       
     - uses: actions/upload-artifact@v4
       with:
