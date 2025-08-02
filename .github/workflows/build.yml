@@ -15,6 +15,7 @@ env:
   SOLUTION_FILE_PATH: .
 
   OCLV_VCPKG_CACHE_DIR: "C:/vcpkg_cache"
+  OCLV_MSBUILD_CACHE_DIR: "C:/cache/msbuild"
   VCPKG_BINARY_SOURCES: "clear;files,C:/vcpkg_cache/bin,readwrite"
   X_VCPKG_ASSET_SOURCES: "clear;x-azurl,file://C:/vcpkg_cache/assets,,readwrite"
 
@@ -39,10 +40,17 @@ jobs:
         path: ${{env.OCLV_VCPKG_CACHE_DIR}}
         key: vcpkg-${{matrix.architecture}}-${{matrix.configuration}}
 
+    - name: Cache MSBuild
+      uses: actions/cache@v4
+      with:
+        path: ${{env.OCLV_MSBUILD_CACHE_DIR}}
+        key: msbuild-${{matrix.architecture}}-${{matrix.configuration}}
+
     - name: Create vcpkg Cache Directories
       run: |
         New-Item -ItemType Directory ${{env.OCLV_VCPKG_CACHE_DIR}}/bin    -ea SilentlyContinue
         New-Item -ItemType Directory ${{env.OCLV_VCPKG_CACHE_DIR}}/assets -ea SilentlyContinue
+        New-Item -ItemType Directory ${{env.OCLV_MSBUILD_CACHE_DIR}}/     -ea SilentlyContinue
 
     - uses: actions/checkout@v4
 
@@ -60,7 +68,7 @@ jobs:
       working-directory: ${{env.GITHUB_WORKSPACE}}
       # Add additional options to the MSBuild command line here (like platform or verbosity level).
       # See https://docs.microsoft.com/visualstudio/msbuild/msbuild-command-line-reference
-      run: msbuild /m /p:Configuration=${{matrix.configuration}} /p:Platform=${{matrix.architecture}} ${{env.SOLUTION_FILE_PATH}}
+      run: msbuild /m /p:Configuration=${{matrix.configuration}} /p:Platform=${{matrix.architecture}} ${{env.SOLUTION_FILE_PATH}} /maxCpuCount /orc:${{env.OCLV_MSBUILD_CACHE_DIR}}/msbuild.cache /ds:True /v:diag
       
     - uses: actions/upload-artifact@v4
       with:
