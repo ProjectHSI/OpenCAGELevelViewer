@@ -41,8 +41,8 @@ jobs:
 
     - name: Create vcpkg Cache Directories
       run: |
-        New-Item -ItemType Folder ${{env.OCLV_VCPKG_CACHE_DIR}}/bin    -ea SilentlyContinue
-        New-Item -ItemType Folder ${{env.OCLV_VCPKG_CACHE_DIR}}/assets -ea SilentlyContinue
+        New-Item -ItemType Directory ${{env.OCLV_VCPKG_CACHE_DIR}}/bin    -ea SilentlyContinue
+        New-Item -ItemType Directory ${{env.OCLV_VCPKG_CACHE_DIR}}/assets -ea SilentlyContinue
 
     - uses: actions/checkout@v4
 
