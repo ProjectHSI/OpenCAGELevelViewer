@@ -32,6 +32,8 @@
 
 using namespace std::chrono_literals;
 
+#pragma managed (push, off)
+
 std::string commandsEditorHost = "127.0.0.1";
 std::string commandsEditorPort = "1702";
 std::string commandsEditorCombined = commandsEditorHost + ":" + commandsEditorPort;
@@ -883,7 +885,7 @@ void OpenCAGELevelViewer::WebsocketThread::main() {
 			static bool wasError = false;
 
 			while ((!wasConnected.test() || connected.test()) && (willConnect.test() && !wasError)) {
-				OpenCAGELevelViewer::WSockWrapper::SocketStatusBitField status = ConnectSocket.select();
+				OpenCAGELevelViewer::WSockWrapper::SocketStatusBitField status = ConnectSocket.select(100ms);
 
 				if (status & OpenCAGELevelViewer::WSockWrapper::SocketStatus::SocketStatus_Readable) {
 					std::vector<char> currentResponse = ConnectSocket.Recv();
@@ -961,6 +963,10 @@ void OpenCAGELevelViewer::WebsocketThread::main() {
 					ConnectSocket.Send(transmitBuffer);
 				}
 
+				if (status & WSockWrapper::SocketStatus_Excepted) {
+					__debugbreak();
+				}
+
 				std::this_thread::yield();
 			}
 
@@ -1011,3 +1017,5 @@ void OpenCAGELevelViewer::WebsocketThread::main() {
    //}
 
    //webSocket.stop();
+
+#pragma managed(pop)

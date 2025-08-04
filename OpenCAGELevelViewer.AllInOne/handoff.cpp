@@ -83,7 +83,7 @@ int handoff(char **argv, int argc) {
 	}*/
 
 	SDL_GL_MakeCurrent(sdlWindow, gl_context);
-	SDL_GL_SetSwapInterval(0);
+	SDL_GL_SetSwapInterval(1);
 
 	glbinding::initialize(reinterpret_cast< glbinding::ProcAddress(*)(const char *) >(SDL_GL_GetProcAddress), true);
 	//glbinding::initialize(SDL_GL_GetProcAddress);
@@ -593,6 +593,8 @@ int handoff(char **argv, int argc) {
 		//SDL_RenderClear(sdlRenderer);
 
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+		glFlush();
 
 		SDL_GL_SwapWindow(sdlWindow);
 

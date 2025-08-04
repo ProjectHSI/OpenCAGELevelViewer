@@ -20,6 +20,7 @@
 #include <chrono>
 
 #pragma managed(push, off)
+#pragma managed(push, off)
 static std::pair<INT, int> unmanagedWSAStartup(WORD wVersionRequested, LPWSADATA lpWSAData) {
 	int ret = WSAStartup(wVersionRequested, lpWSAData);
 	int errorCode = WSAGetLastError();
@@ -373,3 +374,4 @@ void OpenCAGELevelViewer::WSockWrapper::Socket::Send(const std::vector<char> &da
 		throw OpenCAGELevelViewer::WSockWrapper::WSAError(ret, WSAGetLastError());
 	}
 }
+#pragma managed(pop)
