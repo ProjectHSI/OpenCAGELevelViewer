@@ -36,7 +36,7 @@
     <ClInclude Include="Shader.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ContentManager.h">
+    <ClInclude Include="ContentManager.old.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -62,7 +62,7 @@
     <ClCompile Include="Shader.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ContentManager.cpp">
+    <ClCompile Include="ContentManager.old.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -77,10 +77,14 @@
     <None Include="AxisFragmentShaderY.frag">
       <Filter>Resource Files</Filter>
     </None>
-  </ItemGroup>
-  <ItemGroup>
-    <Object Include="AxisArrow.obj">
+    <None Include="AxisArrow.obj">
       <Filter>Resource Files</Filter>
-    </Object>
+    </None>
+    <None Include="FragmentShader.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="VertexShader.vert">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
 </Project>
