@@ -8,6 +8,8 @@ namespace OpenCAGELevelViewer {
 	namespace _3DView {
 		unsigned int getFbo(void);
 
+		extern float fov;
+
 		//extern std::recursive_mutex _3dViewMutex;
 
 		/*struct _3DViewCamera {

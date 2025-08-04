@@ -136,7 +136,7 @@ static void glDebugOutput(GLenum source,
 
 float yaw = -90.0f;
 float pitch = 0.0f;
-float fov = 45.0f;
+float OpenCAGELevelViewer::_3DView::fov = 45.0f;
 
 void OpenCAGELevelViewer::_3DView::updateCamera(signed char x, signed char y, signed char z, signed char roll, int32_t mouseX, int32_t mouseY, float scrollY, bool isShiftPressed, bool isCtrlPressed, float deltaTime) {
 	// TODO: Use isCtrlPressed to create some sort of accelerating camera, kind of like Optifine/Zoomify/Whatever (Minecraft)'s Cinematic Camera.
@@ -750,6 +750,9 @@ void OpenCAGELevelViewer::_3DView::Render(ImVec2 windowSize/*, std::optional<std
 
 	glClearColor(0.2f, 0.3f, 0.3f, 0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	if (fov < 30.0f) fov = 30.0f;
+	else if (fov > 120.0f) fov = 120.0f;
 
 	glm::mat4 projection = glm::perspective(glm::radians(fov), ( float ) windowSize.x / ( float ) windowSize.y, 0.1f, 100.0f);
 	glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);

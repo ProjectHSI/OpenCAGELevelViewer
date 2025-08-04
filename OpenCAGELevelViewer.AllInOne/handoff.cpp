@@ -466,6 +466,8 @@ int handoff(char **argv, int argc) {
 				constexpr const char *msaaSamplesNames[] = {"1x (Off)", "2x", "4x", "8x"};
 				const char *msaaSampleName = msaaSamplesNames[msaaSamples];
 
+				ImGui::SliderFloat("FOV", &OpenCAGELevelViewer::_3DView::fov, 30, 120, "%.3f", 0);
+
 				ImGui::BeginDisabled();
 				ImGui::SliderInt("MSAA Antialiasing", &msaaSamples, 0, 3, msaaSampleName);
 				ImGui::SetItemTooltip("Antialiasing has not yet been implemented.");
