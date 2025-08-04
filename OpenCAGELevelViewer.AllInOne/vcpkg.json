@@ -1,6 +1,7 @@
 {
   "builtin-baseline": "acd5bba5aac8b6573b5f6f463dc0341ac0ee6fa4",
   "dependencies": [
+    "cryptopp",
     "glbinding",
     "glm",
     {
@@ -13,6 +14,7 @@
       ]
     },
     "nlohmann-json",
-    "sdl3"
+    "sdl3",
+    "assimp"
   ]
 }

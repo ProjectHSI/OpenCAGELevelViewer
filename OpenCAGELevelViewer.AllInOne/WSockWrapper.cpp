@@ -26,7 +26,7 @@ static std::pair<INT, int> unmanagedWSAStartup(WORD wVersionRequested, LPWSADATA
 
 	return {ret, errorCode};
 }
-#pragma managed(pop, off)
+#pragma managed(pop)
 
 OpenCAGELevelViewer::WSockWrapper::WinSock::WinSock() {
 	auto ret = unmanagedWSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -65,11 +65,11 @@ static std::pair<INT, int> unmanagedGetaddrinfo(PCSTR pNodeName, PCSTR pServiceN
 
 	return {ret, errorCode};
 }
-#pragma managed(pop, off)
+#pragma managed(pop)
 
 OpenCAGELevelViewer::WSockWrapper::AddrInfo::AddrInfo(const std::string &host, const uint_least16_t port, const OpenCAGELevelViewer::WSockWrapper::AddrInfo & hints) {
 	addrinfo *result;
-	auto ret = unmanagedGetaddrinfo("localhost", /*std::to_string(port).c_str()*/"1702", hints.addrInfoPointer.get(), &result);
+	auto ret = unmanagedGetaddrinfo("localhost", std::to_string(port).c_str(), hints.addrInfoPointer.get(), &result);
 
 	if (ret.first)
 		throw OpenCAGELevelViewer::WSockWrapper::WSAError(0, ret.second);
@@ -88,7 +88,7 @@ static std::pair<SOCKET, int> unmanagedSocket(int af, int type, int protocol) {
 
 	return {ret, errorCode};
 }
-#pragma managed(pop, off)
+#pragma managed(pop)
 
 OpenCAGELevelViewer::WSockWrapper::Socket::Socket(int af, int type, int protocol) {
 	auto ret = unmanagedSocket(af, type, protocol);
@@ -133,7 +133,7 @@ static std::pair<int, int> unmanagedConnect(SOCKET s, sockaddr *name, int namele
 
 	return {ret, errorCode};
 }
-#pragma managed(pop, off)
+#pragma managed(pop)
 
 void OpenCAGELevelViewer::WSockWrapper::Socket::_connect(const addrinfo &addrInfo) const {
 	auto ret = unmanagedConnect(_socket, addrInfo.ai_addr, static_cast< int >(addrInfo.ai_addrlen));
@@ -150,7 +150,7 @@ static std::pair<int, int> unmanagedgetsockopt(SOCKET s, int level, int optname,
 
 	return {ret, errorCode};
 }
-#pragma managed(pop, off)
+#pragma managed(pop)
 
 std::vector<char> OpenCAGELevelViewer::WSockWrapper::Socket::_getSockOpt(int level, int optname) const {
 	int optvalSize = 64;

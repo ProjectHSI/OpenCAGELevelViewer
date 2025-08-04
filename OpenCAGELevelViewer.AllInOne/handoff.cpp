@@ -21,10 +21,10 @@
 #include <glbinding/gl/gl.h>
 #include <glbinding/getProcAddress.h>
 
+#include "3DView.h"
+
 using namespace gl;
 using namespace std::chrono_literals;
-
-// #include "3DView.h" /* TODO: Port */
 
 SDL_Window *sdlWindow;
 SDL_Renderer *sdlRenderer;
@@ -98,8 +98,8 @@ int handoff(char **argv, int argc) {
 	//io.ConfigFlags |= ImGuiConfigFlags_
 
 	// Setup Dear ImGui style
-	//ImGui::StyleColorsDark();
-	ImGui::StyleColorsLight();
+	ImGui::StyleColorsDark();
+	//ImGui::StyleColorsLight();
 
 	// Setup Platform/Renderer backends
 	ImGui_ImplSDL3_InitForOpenGL(sdlWindow, SDL_GL_GetCurrentContext());
@@ -131,7 +131,7 @@ int handoff(char **argv, int argc) {
 
 	/*ImGuiID dockspaceId = ImGui::GetID("OpenCAGELevelViewer Dockspace");*/
 
-	//OpenCAGELevelViewer::_3DView::Initalise();
+	OpenCAGELevelViewer::_3DView::Initalise();
 
 	static bool _3dViewLockInput = false;
 
@@ -145,6 +145,9 @@ int handoff(char **argv, int argc) {
 		static bool isBackwardPressed = false;
 		static bool isUpPressed = false;
 		static bool isDownPressed = false;
+
+		static bool isShiftPressed = false;
+		static bool isCtrlPressed = false;
 
 		int32_t xMouse = 0;
 		int32_t yMouse = 0;
@@ -205,6 +208,12 @@ int handoff(char **argv, int argc) {
 							case SDLK_S:
 								isBackwardPressed = true;
 								break;
+							case SDLK_LSHIFT:
+								isShiftPressed = true;
+								break;
+							case SDLK_LCTRL:
+								isCtrlPressed = true;
+								break;
 						}
 					}
 					break;
@@ -229,6 +238,12 @@ int handoff(char **argv, int argc) {
 							case SDLK_S:
 								isBackwardPressed = false;
 								break;
+							case SDLK_LSHIFT:
+								isShiftPressed = false;
+								break;
+							case SDLK_LCTRL:
+								isCtrlPressed = false;
+								break;
 						}
 					}
 					break;
@@ -238,7 +253,7 @@ int handoff(char **argv, int argc) {
 				userRequestedExit = true;
 		}
 
-		//OpenCAGELevelViewer::_3DView::updateCamera(isRightPressed - isLeftPressed, isUpPressed - isDownPressed, isForwardPressed - isBackwardPressed, 0, xMouse, yMouse, yScroll, static_cast< float >(currentFrameTime - lastFrameTime) / std::chrono::microseconds::period::den);
+		OpenCAGELevelViewer::_3DView::updateCamera(isRightPressed - isLeftPressed, isUpPressed - isDownPressed, isForwardPressed - isBackwardPressed, 0, xMouse, yMouse, yScroll, isShiftPressed, isCtrlPressed, static_cast< float >(currentFrameTime - lastFrameTime) / std::chrono::microseconds::period::den);
 
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplSDL3_NewFrame();
@@ -512,14 +527,13 @@ int handoff(char **argv, int argc) {
 	#pragma region OpenGL
 		{
 			if (ImGui::Begin("3D View")) {
-				/*
-				if (openGlLoadingThreadIsDone.test()) {
+				//if (openGlLoadingThreadIsDone.test()) {
 					if (ImGui::BeginChild("3DViewRender")) {
 						ImVec2 wsize = ImGui::GetWindowSize();
 
 						ImVec2 currentCursor = ImGui::GetCursorPos();
 
-						OpenCAGELevelViewer::_3DView::Render(wsize, unmanagedModelReference);
+						OpenCAGELevelViewer::_3DView::Render(wsize);
 
 						//glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -535,12 +549,11 @@ int handoff(char **argv, int argc) {
 							io.ConfigFlags &= (0xFFFFFFFF ^ ImGuiConfigFlags_NavEnableGamepad);
 							io.ConfigFlags |= ImGuiConfigFlags_NoMouse;
 
-							SDL_SetRelativeMouseMode(SDL_TRUE);
+							SDL_SetWindowRelativeMouseMode(sdlWindow, true);
 						}
 					}
 					ImGui::EndChild();
-				}
-		*/
+				//}
 
 				/*int w, h;
 				SDL_GL_GetDrawableSize(sdlWindow, &w, &h);
@@ -588,7 +601,7 @@ int handoff(char **argv, int argc) {
 		//SDL_RenderPresent(sdlRenderer);
 	}
 
-	//OpenCAGELevelViewer::_3DView::Quit();
+	OpenCAGELevelViewer::_3DView::Quit();
 
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplSDL3_Shutdown();

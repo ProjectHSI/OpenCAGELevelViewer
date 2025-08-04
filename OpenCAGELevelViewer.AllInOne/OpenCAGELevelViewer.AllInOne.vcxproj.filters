@@ -30,6 +30,15 @@
     <ClInclude Include="WSockWrapper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="3DView.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Shader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ContentManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp">
@@ -47,8 +56,31 @@
     <ClCompile Include="WSockWrapper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="3DView.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Shader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ContentManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="vcpkg.json" />
+    <None Include="AxisFragmentShaderZ.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="AxisFragmentShaderX.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="AxisFragmentShaderY.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Object Include="AxisArrow.obj">
+      <Filter>Resource Files</Filter>
+    </Object>
   </ItemGroup>
 </Project>
