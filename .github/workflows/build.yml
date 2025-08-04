@@ -38,13 +38,17 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ${{env.OCLV_VCPKG_CACHE_DIR}}/assets
-        key: vcpkg-${{matrix.architecture}}-${{matrix.configuration}}
+        key: vcpkg-assets-${{ github.run_id }}
+        restore-keys: |
+            vcpkg-assets
 
     - name: Cache vcpkg binary cache
       uses: actions/cache@v4
       with:
         path: ${{env.OCLV_VCPKG_CACHE_DIR}}/bin
-        key: vcpkg-assets
+        key: vcpkg-${{matrix.architecture}}-${{matrix.configuration}}-${{ github.run_id }}
+        restore-keys: |
+            vcpkg-${{matrix.architecture}}-${{matrix.configuration}}
 
     #- name: Cache MSBuild
     #  uses: actions/cache@v4
