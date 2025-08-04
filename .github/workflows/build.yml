@@ -34,11 +34,17 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - name: Cache vcpkg
+    - name: Cache vcpkg asset cache
       uses: actions/cache@v4
       with:
-        path: ${{env.OCLV_VCPKG_CACHE_DIR}}
+        path: ${{env.OCLV_VCPKG_CACHE_DIR}}/assets
         key: vcpkg-${{matrix.architecture}}-${{matrix.configuration}}
+
+    - name: Cache vcpkg binary cache
+      uses: actions/cache@v4
+      with:
+        path: ${{env.OCLV_VCPKG_CACHE_DIR}}/bin
+        key: vcpkg-assets
 
     #- name: Cache MSBuild
     #  uses: actions/cache@v4
