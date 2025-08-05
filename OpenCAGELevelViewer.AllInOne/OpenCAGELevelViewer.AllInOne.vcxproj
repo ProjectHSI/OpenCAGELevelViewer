@@ -396,6 +396,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="3DView.h" />
+    <ClInclude Include="ContentManager.h" />
     <ClInclude Include="ContentManager.old.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="handoff.h" />
@@ -406,6 +407,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="3DView.cpp" />
+    <ClCompile Include="ContentManager.cpp" />
     <ClCompile Include="ContentManager.old.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="handoff.cpp" />

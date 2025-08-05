@@ -269,7 +269,7 @@ int handoff(char **argv, int argc) {
 	#pragma region ImGui Start
 		{
 			static ImGuiDockNodeFlags dockspace_flags = ImGuiDockNodeFlags_None;
-			ImGuiWindowFlags window_flags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking;
+			ImGuiWindowFlags window_flags = /*ImGuiWindowFlags_MenuBar | */ImGuiWindowFlags_NoDocking;
 
 			const ImGuiViewport *viewport = ImGui::GetMainViewport();
 			ImGui::SetNextWindowPos(viewport->WorkPos);
@@ -289,6 +289,69 @@ int handoff(char **argv, int argc) {
 			ImGui::PopStyleVar(2);
 
 			ImGui::End();
+
+			static bool openAboutMenu = false;
+			static bool isSettingsMenuOpen = false;
+
+			if (ImGui::BeginMainMenuBar()) {
+				if (ImGui::BeginMenu("Help")) {
+					openAboutMenu = ImGui::MenuItem("About");
+					ImGui::MenuItem("Settings", NULL, &isSettingsMenuOpen);
+
+					ImGui::EndMenu();
+				}
+
+				ImGui::EndMainMenuBar();
+			}
+
+			if (openAboutMenu)
+				ImGui::OpenPopup("About##OCLV", 0);
+
+			if (ImGui::BeginPopupModal("About##OCLV", &openAboutMenu, ImGuiWindowFlags_AlwaysAutoResize)) {
+				ImGui::Text("OpenCAGE C++ Level Viewer");
+				ImGui::Text("By ProjectHSI");
+				ImGui::NewLine();
+				ImGui::Text("Pre-Alpha");
+				ImGui::NewLine();
+				ImGui::Text("Made with CATHODELib by Matt Filer");
+				ImGui::NewLine();
+				ImGui::Text("Made with love for the OpenCAGE Community");
+
+				ImGui::EndPopup();
+			}
+
+			if (isSettingsMenuOpen) {
+				if (ImGui::Begin("Settings", &isSettingsMenuOpen)) {
+					int swapInterval;
+					//const char *swapIntervalString = "";
+
+					SDL_GL_GetSwapInterval(&swapInterval);
+
+					auto getSwapIntervalString = [](int swapInterval) -> const char * {
+						switch (swapInterval) {
+							case -1:
+								return "Adaptive VSync";
+							case 0:
+								return "No Vertical Sync";
+							case 1:
+								return "Vertical Sync";
+						}
+						};
+
+					if (ImGui::BeginCombo("VSync", getSwapIntervalString(swapInterval))) {
+						for (int8_t i = -1; i <= 1; i++) {
+							if (ImGui::Selectable(getSwapIntervalString(i), swapInterval == i))
+								SDL_GL_SetSwapInterval(i);
+
+							if (swapInterval == i)
+								ImGui::SetItemDefaultFocus();
+						}
+
+						ImGui::EndCombo();
+					}
+				}
+				ImGui::End();
+			}
 		}
 
 		//static std::optional<OpenCAGELevelViewer::ContentManager::UnmanagedModelReference> unmanagedModelReference;

@@ -721,8 +721,7 @@ static void processWebsocketMessage(std::vector<char> &data) {
 
 					uint16_t closeCodeValue = std::bit_cast< uint16_t, std::array<char, 2> >(closeCode);;
 					if constexpr (std::endian::native == std::endian::little)
-						closeCodeValue = _byteswap_ushort(closeCodeValue); // TODO: Swap this for std::byteswap when C++/CLI supports C++23
-					                                                       // TODO: ... yeah. MSVC itself supports C++23, but just not C++/CLI.
+						closeCodeValue = _byteswap_ushort(closeCodeValue); // TODO: Swap this for std::byteswap when C++/CLI supports C++23 ... yeah. MSVC itself supports C++23, but just not C++/CLI.
 
 					std::cout << "\tReceived close code " << closeCodeValue << "!";
 				}
