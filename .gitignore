@@ -363,3 +363,4 @@ MigrationBackup/
 FodyWeavers.xsd
 
 **/vcpkg_installed
+/OpenCAGELevelViewer.AllInOne.HandOff/imgui.ini

@@ -451,6 +451,11 @@
       <Version>0.9.1</Version>
     </PackageReference>
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\OpenCAGELevelViewer.AllInOne.CSManaged\OpenCAGELevelViewer.AllInOne.CSManaged.csproj">
+      <Project>{7d9142bc-4f9c-c208-c36d-1732255a88e9}</Project>
+    </ProjectReference>
+  </ItemGroup>
   <PropertyGroup>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <EnableManagedPackageReferenceSupport>true</EnableManagedPackageReferenceSupport>

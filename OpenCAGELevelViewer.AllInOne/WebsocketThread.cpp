@@ -1,6 +1,7 @@
 #include "WebsocketThread.h"
 
 #include "WSockWrapper.h"
+#include "ContentManager.h"
 #include <array>
 #include <atomic>
 #include <bit>
@@ -135,12 +136,19 @@ static void handleMessage(const std::string &data/*beast::error_code const& ec, 
 			}
 
 			OpenCAGELevelViewer::WebsocketThread::ready.test_and_set();
-
+			[[fallthrough]];
+		case LEVEL_LOADED: [[fallthrough]];
+		case COMPOSITE_SELECTED: [[fallthrough]];
+		case COMPOSITE_RELOADED:
+			if (parsedJson["system_folder"] != nullptr && parsedJson["system_folder"] != "")
+				OpenCAGELevelViewer::AllInOne::ContentManager::setGameRoot(parsedJson["system_folder"]);
+			if (parsedJson["level_name"] != nullptr && parsedJson["level_name"] != "")
+				OpenCAGELevelViewer::AllInOne::ContentManager::setLevel(parsedJson["level_name"]);
+			if (parsedJson["composite"] != nullptr && parsedJson["composite"].is_number_unsigned() && parsedJson["composite"] != 0) {
+				OpenCAGELevelViewer::AllInOne::ContentManager::setComposite(parsedJson["composite"]);
+			}
 			break;
-
-		case LEVEL_LOADED:
-
-			break;
+			// TODO: Path composites?
 
 			/*
 		case LOAD_LEVEL:
@@ -960,6 +968,7 @@ void OpenCAGELevelViewer::WebsocketThread::main() {
 						didSendPongFrame = true;
 					}
 					ConnectSocket.Send(transmitBuffer);
+					transmitBuffer.clear();
 				}
 
 				if (status & WSockWrapper::SocketStatus_Excepted) {

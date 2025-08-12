@@ -30,7 +30,7 @@ using namespace System;
 using namespace OpenCAGELevelViewer;
 //using namespace static CATHODE::Models;
 
-msclr::gcroot< msclr::interop::marshal_context ^ > msclr_context = gcnew msclr::interop::marshal_context();
+static msclr::gcroot< msclr::interop::marshal_context ^ > msclr_context = gcnew msclr::interop::marshal_context();
 
 static OpenCAGELevelViewer::ContentManager::ContentManagerContext contentManagerContext;
 

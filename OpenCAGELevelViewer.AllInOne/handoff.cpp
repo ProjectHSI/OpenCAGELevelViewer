@@ -10,7 +10,7 @@
 #include <chrono>
 #include <iostream>
 #include "WebsocketThread.h"
-//#include <ContentManager.h> /* TODO: Port */
+#include "ContentManager.h"
 #include <functional>
 
 #include <glbinding/glbinding.h>
@@ -108,14 +108,11 @@ int handoff(char **argv, int argc) {
 	OpenCAGELevelViewer::WebsocketThread::keepThreadActive.test_and_set();
 	OpenCAGELevelViewer::WebsocketThread::willConnect.test_and_set();
 
-	//fv::Tasks::Init();
-	//fv::Tasks::RunAsync(OpenCAGELevelViewer::WebsocketThread::main);
-	//fv::Tasks::Run();
 	std::atomic_flag suspendFlag;
 	suspendFlag.test_and_set();
 
+	std::thread contentManagerThread([&suspendFlag]() -> void { OpenCAGELevelViewer::AllInOne::ContentManager::threadMain(suspendFlag); });
 	std::thread websocketThread(OpenCAGELevelViewer::WebsocketThread::main);
-	//std::thread contentManagerThread([&suspendFlag]() { OpenCAGELevelViewer::ContentManager::contentManagerThread(suspendFlag); });
 
 	bool userRequestedExit = false;
 
