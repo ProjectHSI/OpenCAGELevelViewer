@@ -1,12 +1,14 @@
 #pragma once
 
+#include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
-#include <glm/mat4x4.hpp>
 
-#include <glm/fwd.hpp>
 #include <atomic>
 #include <cstdint>
+#include <glm/fwd.hpp>
+#include <map>
+#include <msclr/gcroot.h>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -51,6 +53,56 @@ namespace OpenCAGELevelViewer {
 				float shine = 0;
 			};
 		#pragma pack()
+
+			typedef glm::vec3 Vector3;
+			typedef struct {
+				Vector3 position {};
+				Vector3 rotation {};
+			} Transform;
+
+			typedef System::Numerics::Vector3 ManagedVector3;
+			ref struct ManagedTransform {
+				ManagedVector3 position {};
+				ManagedVector3 rotation {};
+			};
+
+			typedef ref struct EntityDataValue;
+			typedef System::Collections::Generic::Dictionary < CATHODE::Scripting::ShortGuid, EntityDataValue ^ > ShortGuidEntityMap;
+
+			ref struct EntityDataValue {
+				ManagedTransform ^transform {};
+
+				CATHODE::Scripting::Internal::Entity ^entity = nullptr;
+
+				EntityDataValue ^parent = nullptr;
+			};
+
+			ref struct ModelReferenceDataValue : public EntityDataValue {
+				size_t modelReferenceId {};
+			};
+
+			ref struct CompositeDataValue : public EntityDataValue {
+				ShortGuidEntityMap ^children = gcnew ShortGuidEntityMap(0);
+				CATHODE::Scripting::Composite ^composite = nullptr;
+			};
+
+			enum CMStatusEnum {
+				READY,
+				DIRTY,
+				LOADING
+			};
+
+			struct CMStatus {
+				CMStatusEnum currentStatus;
+			};
+
+			extern std::atomic < CMStatus > cmStatus;
+			extern std::recursive_mutex cmMutex;
+
+			extern msclr::gcroot < System::Collections::Generic::List < System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^ > ^ > compositesById;
+			extern std::map < uint64_t, CMModel > models;
+			extern std::map < uint64_t, std::vector < ModelReferenceGL > > modelReferences;
+			extern msclr::gcroot < CompositeDataValue ^ > entityDataRoot;
 
 			/*struct Vec3Transform {
 				glm::vec3 position {};

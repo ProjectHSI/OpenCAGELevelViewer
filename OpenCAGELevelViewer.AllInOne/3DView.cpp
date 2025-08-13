@@ -9,7 +9,7 @@
 #include <glbinding/getProcAddress.h>
 #include <glbinding/gl/gl.h>
 
-//#include "ContentManager.h"
+#include "ContentManager.h"
 #include <cstdint>
 #include <fstream>
 #include <glbinding/gl/gl.h>
@@ -137,12 +137,13 @@ static void GL_APIENTRY glDebugOutput(GLenum source,
 float yaw = -90.0f;
 float pitch = 0.0f;
 float OpenCAGELevelViewer::_3DView::fov = 45.0f;
+float OpenCAGELevelViewer::_3DView::mouseSensitivity = 1.0f;
 
 void OpenCAGELevelViewer::_3DView::updateCamera(signed char x, signed char y, signed char z, signed char roll, int32_t mouseX, int32_t mouseY, float scrollY, bool isShiftPressed, bool isCtrlPressed, float deltaTime) {
 	// TODO: Use isCtrlPressed to create some sort of accelerating camera, kind of like Optifine/Zoomify/Whatever (Minecraft)'s Cinematic Camera.
 	
-	yaw += mouseX * 0.1;
-	pitch += mouseY * -0.1;
+	yaw += mouseX * 0.1 * mouseSensitivity;
+	pitch += mouseY * -0.1 * mouseSensitivity;
 
 	if (pitch > 89.0f) pitch = 89.0f;
 	else if (pitch < -89.0f) pitch = -89.0f;
@@ -426,6 +427,10 @@ GLuint axisYProgram;
 GLuint axisZProgram;
 
 void OpenCAGELevelViewer::_3DView::Initalise(void) {
+	//int data;
+	//glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &data);
+	//std::cout << data << std::endl;
+
 	glEnable(GL_DEBUG_OUTPUT);
 	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 
@@ -597,8 +602,9 @@ struct ExtendedModelReference : public OpenCAGELevelViewer::ContentManager::Unma
 std::map<unsigned long long, ParsedModel> parsedCs2Models;
 
 std::optional < OpenCAGELevelViewer::_3DView::UsuableUnmanagedObjects > _3dViewSelectedUnmanagedObject;
-
+#endif
 void OpenCAGELevelViewer::_3DView::UpdateScene(/*std::optional < OpenCAGELevelViewer::_3DView::UsuableUnmanagedObjects > unmanagedObject, */std::atomic_flag &isDone) {
+#if 0
 	for (auto &sceneModel : parsedCs2Models) {
 		glDeleteBuffers(2, &sceneModel.second.vertexBufferObject); // ebo is sure to come after this, so we can do this
 		glDeleteVertexArrays(1, &sceneModel.second.vertexArrayObject);
@@ -712,7 +718,9 @@ void OpenCAGELevelViewer::_3DView::UpdateScene(/*std::optional < OpenCAGELevelVi
 	//for (auto &sceneComposite : rootSceneComposite.sceneComposites) {
 	//	sceneComposite.
 	//};
+#endif
 }
+#if 0
 #pragma endregion
 
 static void renderUnmanagedModelStorage(OpenCAGELevelViewer::ContentManager::UnmanagedModelReference::ModelStorage modelStorage) {
@@ -723,6 +731,71 @@ static void renderUnmanagedModelReference(OpenCAGELevelViewer::ContentManager::U
 
 }
 #endif
+
+GLuint MRVbo = 0;
+
+struct MRVBOAllocation {
+	size_t modelId;
+	size_t size;
+	size_t offset;
+};
+
+std::vector < MRVBOAllocation > MRVboAllocations {};
+
+GLuint MREbo = 0;
+GLuint MRIbo = 0;
+GLuint MRIDbo = 0;
+GLuint MRVao = 0;
+
+std::atomic_flag CMLoaded {};
+static void regenerateMRBuffers() {
+	if (MRVbo == 0)
+		glGenBuffers(1, &MRVbo);
+	if (MREbo == 0)
+		glGenBuffers(1, &MREbo);
+	if (MRIbo == 0)
+		glGenBuffers(1, &MRIbo);
+	if (MRVao == 0)
+		glGenVertexArrays(1, &MRVao);
+}
+
+static void destroyMRBuffers() {
+	if (MRVbo != 0) {
+		glDeleteBuffers(1, &MRVbo);
+		MRVbo = 0;
+	}
+	if (MREbo != 0) {
+		glDeleteBuffers(1, &MREbo);
+		MREbo = 0;
+	}
+	if (MRIbo != 0) {
+		glDeleteBuffers(1, &MRIbo);
+		MRIbo = 0;
+	}
+	if (MRVao != 0) {
+		glDeleteVertexArrays(1, &MRVao);
+		MRVao = 0;
+	}
+}
+
+static void allocateMRVBO() {
+	std::lock_guard cmLock(OpenCAGELevelViewer::AllInOne::ContentManager::cmMutex);
+
+	//OpenCAGELevelViewer::AllInOne::ContentManager::
+}
+
+static void regenerateMRVAO() {
+	OpenCAGELevelViewer::AllInOne::ContentManager::CMStatusEnum cmStatus = OpenCAGELevelViewer::AllInOne::ContentManager::cmStatus.load().currentStatus;
+
+	if (cmStatus == OpenCAGELevelViewer::AllInOne::ContentManager::CMStatusEnum::LOADING) {
+		CMLoaded.clear();
+
+		// free up vram
+		destroyMRBuffers();
+	}
+	if (OpenCAGELevelViewer::AllInOne::ContentManager::cmStatus.load().currentStatus == OpenCAGELevelViewer::AllInOne::ContentManager::CMStatusEnum::LOADING)
+		return;
+}
 
 void OpenCAGELevelViewer::_3DView::Render(ImVec2 windowSize/*, std::optional<std::variant<OpenCAGELevelViewer::ContentManager::UnmanagedModelReference, OpenCAGELevelViewer::ContentManager::UnmanagedComposite>> unmanagedModelReference*//*, int msaaSamples*/) {
 #pragma region Rendering Start

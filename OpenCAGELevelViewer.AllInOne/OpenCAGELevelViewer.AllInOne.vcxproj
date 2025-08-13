@@ -438,6 +438,7 @@
     <None Include="FragmentShader.frag">
       <DeploymentContent>true</DeploymentContent>
     </None>
+    <None Include="VAOAttributeTracking.md" />
     <None Include="vcpkg.json" />
     <None Include="AxisArrow.obj">
       <DeploymentContent>true</DeploymentContent>

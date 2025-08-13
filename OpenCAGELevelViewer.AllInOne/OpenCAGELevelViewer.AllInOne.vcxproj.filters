@@ -92,5 +92,6 @@
     <None Include="VertexShader.vert">
       <Filter>Resource Files</Filter>
     </None>
+    <None Include="VAOAttributeTracking.md" />
   </ItemGroup>
 </Project>

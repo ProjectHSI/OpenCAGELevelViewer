@@ -527,6 +527,7 @@ int handoff(char **argv, int argc) {
 				const char *msaaSampleName = msaaSamplesNames[msaaSamples];
 
 				ImGui::SliderFloat("FOV", &OpenCAGELevelViewer::_3DView::fov, 30, 120, "%.3f", 0);
+				ImGui::SliderFloat("Mouse Sensitivity", &OpenCAGELevelViewer::_3DView::mouseSensitivity, 0.25, 10, "%.3f", ImGuiSliderFlags_Logarithmic);
 
 				ImGui::BeginDisabled();
 				ImGui::SliderInt("MSAA Antialiasing", &msaaSamples, 0, 3, msaaSampleName);

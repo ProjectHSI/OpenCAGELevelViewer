@@ -16,6 +16,7 @@
 #include "glm/ext/vector_uint4_sized.hpp"
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <exception>
 #include <functional>
 #include <glm/glm.hpp>
@@ -80,20 +81,6 @@ ref struct LevelContent {
 	CATHODE::RenderableElements ^Renderables;
 };
 
-typedef glm::vec3 Vector3;
-typedef struct {
-	Vector3 position {};
-	Vector3 rotation {};
-} Transform;
-
-typedef System::Numerics::Vector3 ManagedVector3;
-ref struct ManagedTransform {
-	ManagedVector3 position {};
-	ManagedVector3 rotation {};
-
-	//ManagedTransform() = default;
-};
-
 #pragma region std::hash Injections
 //template<>
 //struct std::hash<CATHODE::Scripting::ShortGuid> {
@@ -103,42 +90,50 @@ ref struct ManagedTransform {
 //};
 #pragma endregion
 
-typedef ref struct EntityDataValue;
-//typedef ref struct ManagedExtendedEntityData;
+//typedef ref struct EntityDataValue;
+////typedef ref struct ManagedExtendedEntityData;
+////
+////typedef std::pair < ExtendedEntityData, ManagedExtendedEntityData > EntityDataValue;
+////
+//typedef System::Collections::Generic::Dictionary < CATHODE::Scripting::ShortGuid, EntityDataValue ^ > ShortGuidEntityMap;
 //
-//typedef std::pair < ExtendedEntityData, ManagedExtendedEntityData > EntityDataValue;
+//ref struct EntityDataValue {
+//	ManagedTransform ^transform {};
 //
-typedef System::Collections::Generic::Dictionary < CATHODE::Scripting::ShortGuid, EntityDataValue ^ > ShortGuidEntityMap;
+//	CATHODE::Scripting::Internal::Entity ^entity = nullptr;
+//
+//	EntityDataValue ^parent = nullptr;
+//
+//	/*EntityDataValue() = default;
+//	EntityDataValue(const EntityDataValue ^other) = default;*/
+//};
+//
+//ref struct ModelReferenceDataValue : public EntityDataValue {
+//	size_t modelReferenceId {};
+//};
+//
+//ref struct CompositeDataValue : public EntityDataValue {
+//	ShortGuidEntityMap ^children = gcnew ShortGuidEntityMap(0);
+//	CATHODE::Scripting::Composite ^composite = nullptr;
+//};
 
-ref struct EntityDataValue {
-	ManagedTransform ^transform {};
+#define IS_GL_COMPATIBLE(type) \
+static_assert(std::is_trivially_copyable<type>::value); \
+static_assert(std::is_standard_layout<type>::value) \
 
-	CATHODE::Scripting::Internal::Entity ^entity = nullptr;
-
-	EntityDataValue ^parent = nullptr;
-
-	/*EntityDataValue() = default;
-	EntityDataValue(const EntityDataValue ^other) = default;*/
-};
-
-ref struct ModelReferenceDataValue : public EntityDataValue {
-	size_t modelReferenceId {};
-};
-
-ref struct CompositeDataValue : public EntityDataValue {
-	ShortGuidEntityMap ^children = gcnew ShortGuidEntityMap(0);
-	CATHODE::Scripting::Composite ^composite = nullptr;
-};
-
-static_assert(std::is_trivially_copyable<OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL>::value);
+IS_GL_COMPATIBLE(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL);
+IS_GL_COMPATIBLE(OpenCAGELevelViewer::AllInOne::ContentManager::CMVertex);
 
 msclr::gcroot < LevelContent ^ > levelContentInstance = nullptr;
 
-// TODO: Expose these as global variables
-msclr::gcroot < System::Collections::Generic::List < System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^ > ^ > compositesById {};
-std::map < uint64_t, OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > models {};
-std::map < uint64_t, std::vector < OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL > > modelReferences {};
-msclr::gcroot < CompositeDataValue ^ > entityDataRoot { };
+
+std::atomic < OpenCAGELevelViewer::AllInOne::ContentManager::CMStatus > OpenCAGELevelViewer::AllInOne::ContentManager::cmStatus {};
+std::recursive_mutex OpenCAGELevelViewer::AllInOne::ContentManager::cmMutex {};
+
+msclr::gcroot < System::Collections::Generic::List < System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^ > ^ > OpenCAGELevelViewer::AllInOne::ContentManager::compositesById {};
+std::map < uint64_t, OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > OpenCAGELevelViewer::AllInOne::ContentManager::models {};
+std::map < uint64_t, std::vector < OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL > > OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences {};
+msclr::gcroot < OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^ > OpenCAGELevelViewer::AllInOne::ContentManager::entityDataRoot { };
 
 #pragma region Model Loading and Handling
 // ContentManager model
@@ -184,7 +179,7 @@ static T popTFromArray(size_t &rollingIndex, const std::vector < unsigned char >
 }
 
 static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > getCMMModel(int entryIndex) {
-	if (!models.contains(entryIndex)) {
+	if (!OpenCAGELevelViewer::AllInOne::ContentManager::models.contains(entryIndex)) {
 		CATHODE::Models::CS2::Component::LOD::Submesh ^submesh = levelContentInstance->Models->GetAtWriteIndex(entryIndex);
 		CATHODE::Models::CS2::Component::LOD ^lod = levelContentInstance->Models->FindModelLODForSubmesh(submesh);
 		CATHODE::Models::CS2 ^mesh = levelContentInstance->Models->FindModelForSubmesh(submesh);
@@ -446,10 +441,10 @@ static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > 
 
 		// TODO: Interleave to create a vertex buffer object
 
-		models[entryIndex] = model;
+		OpenCAGELevelViewer::AllInOne::ContentManager::models[entryIndex] = model;
 		return model;
 	} else {
-		return models[entryIndex];
+		return OpenCAGELevelViewer::AllInOne::ContentManager::models[entryIndex];
 	}
 }
 
@@ -458,25 +453,25 @@ static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > 
 //}
 #pragma endregion
 
-static EntityDataValue ^getEntityFromEntityPath(System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^entityPath) {
-	CompositeDataValue ^current = entityDataRoot.operator CompositeDataValue ^ ();
+static OpenCAGELevelViewer::AllInOne::ContentManager::EntityDataValue ^getEntityFromEntityPath(System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^entityPath) {
+	OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^current = OpenCAGELevelViewer::AllInOne::ContentManager::entityDataRoot.operator OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^ ();
 	array < CATHODE::Scripting::ShortGuid > ^entityPathAsArray = entityPath->ToArray();
 
 	for (size_t i = 0; i < entityPath->Count; i++) {
 		CATHODE::Scripting::ShortGuid shortGuid = entityPathAsArray[i];
-		EntityDataValue ^entityDataValue = current->children[shortGuid];
+		OpenCAGELevelViewer::AllInOne::ContentManager::EntityDataValue ^entityDataValue = current->children[shortGuid];
 
 		if (i == entityPath->Count - 1)
 			return entityDataValue;
 		else
-			current = dynamic_cast < CompositeDataValue ^ >(entityDataValue);
+			current = dynamic_cast < OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^ >(entityDataValue);
 	}
 }
 
-static System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^getEntityPathFromEntity(EntityDataValue ^entityDataValue) {
+static System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^getEntityPathFromEntity(OpenCAGELevelViewer::AllInOne::ContentManager::EntityDataValue ^entityDataValue) {
 	System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^entityPath = gcnew System::Collections::Generic::List < CATHODE::Scripting::ShortGuid >(0);
 
-	EntityDataValue ^current = entityDataValue;
+	OpenCAGELevelViewer::AllInOne::ContentManager::EntityDataValue ^current = entityDataValue;
 
 	while (true) {
 		if (current->entity == nullptr)
@@ -511,8 +506,8 @@ static uint8_t sortEntity(CATHODE::Scripting::Internal::Entity ^source) {
 	}
 }
 
-static ManagedTransform ^getManagedTransformFromEntity(CATHODE::Scripting::FunctionEntity ^entity) {
-	ManagedTransform ^transform = gcnew ManagedTransform();
+static OpenCAGELevelViewer::AllInOne::ContentManager::ManagedTransform ^getManagedTransformFromEntity(CATHODE::Scripting::FunctionEntity ^entity) {
+	OpenCAGELevelViewer::AllInOne::ContentManager::ManagedTransform ^transform = gcnew OpenCAGELevelViewer::AllInOne::ContentManager::ManagedTransform();
 	CATHODE::Scripting::Parameter ^positionParam = entity->GetParameter("position");
 	if (positionParam != nullptr && positionParam->content != nullptr) {
 		switch (positionParam->content->dataType) {
@@ -531,9 +526,9 @@ static ManagedTransform ^getManagedTransformFromEntity(CATHODE::Scripting::Funct
 	return transform;
 }
 
-static void CascadeMain(CompositeDataValue ^composite);
+static void CascadeMain(OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^composite);
 
-static void CascadeEntity(CompositeDataValue ^parent, CATHODE::Scripting::Internal::Entity ^entity) {
+static void CascadeEntity(OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^parent, CATHODE::Scripting::Internal::Entity ^entity) {
 	switch (entity->variant) {
 		case CATHODE::Scripting::EntityVariant::FUNCTION: {
 			CATHODE::Scripting::FunctionEntity ^functionEntity = dynamic_cast< CATHODE::Scripting::FunctionEntity ^ >(entity);
@@ -542,7 +537,7 @@ static void CascadeEntity(CompositeDataValue ^parent, CATHODE::Scripting::Intern
 				switch (functionEntity->function.AsFunctionType) {
 					case CATHODE::Scripting::FunctionType::ModelReference:
 						{
-							ModelReferenceDataValue ^modelReferenceDataValue = gcnew ModelReferenceDataValue();
+							OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceDataValue ^modelReferenceDataValue = gcnew OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceDataValue();
 							modelReferenceDataValue->entity = functionEntity;
 							modelReferenceDataValue->transform = getManagedTransformFromEntity(functionEntity);
 
@@ -551,12 +546,12 @@ static void CascadeEntity(CompositeDataValue ^parent, CATHODE::Scripting::Intern
 
 							CATHODE::Scripting::Parameter ^resourceParameter = functionEntity->GetParameter("resource");
 
-							System::Collections::Generic::List < System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^ > ^tempCompById = compositesById;
+							System::Collections::Generic::List < System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^ > ^tempCompById = OpenCAGELevelViewer::AllInOne::ContentManager::compositesById;
 
-							modelReferenceDataValue->modelReferenceId = compositesById->Count;
+							modelReferenceDataValue->modelReferenceId = OpenCAGELevelViewer::AllInOne::ContentManager::compositesById->Count;
 
-							if (!compositesById->Contains(getEntityPathFromEntity(modelReferenceDataValue)))
-								compositesById->Add(getEntityPathFromEntity(modelReferenceDataValue));
+							if (!OpenCAGELevelViewer::AllInOne::ContentManager::compositesById->Contains(getEntityPathFromEntity(modelReferenceDataValue)))
+								OpenCAGELevelViewer::AllInOne::ContentManager::compositesById->Add(getEntityPathFromEntity(modelReferenceDataValue));
 
 							if (resourceParameter != nullptr && resourceParameter->content != nullptr && resourceParameter->content->dataType == CATHODE::Scripting::DataType::RESOURCE) {
 								CATHODE::Scripting::cResource ^resource = dynamic_cast< CATHODE::Scripting::cResource ^ >(resourceParameter->content);
@@ -575,10 +570,10 @@ static void CascadeEntity(CompositeDataValue ^parent, CATHODE::Scripting::Intern
 												OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL modelReferenceGl;
 												modelReferenceGl.instanceId = modelReferenceDataValue->modelReferenceId;
 
-												if (!modelReferences.contains(cmModel->modelId))
-													modelReferences[cmModel->modelId] = {};
+												if (!OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences.contains(cmModel->modelId))
+													OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences[cmModel->modelId] = {};
 
-												modelReferences[cmModel->modelId].push_back(modelReferenceGl);
+												OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences[cmModel->modelId].push_back(modelReferenceGl);
 
 												//__debugbreak();
 											}
@@ -592,7 +587,7 @@ static void CascadeEntity(CompositeDataValue ^parent, CATHODE::Scripting::Intern
 				}
 			} else {
 				// composite
-				CompositeDataValue ^compositeDataValue = gcnew CompositeDataValue();
+				OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^compositeDataValue = gcnew OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue();
 				compositeDataValue->entity = functionEntity;
 				compositeDataValue->composite = levelContentInstance->Commands->GetComposite(functionEntity->function);
 				compositeDataValue->transform = getManagedTransformFromEntity(functionEntity);
@@ -607,7 +602,7 @@ static void CascadeEntity(CompositeDataValue ^parent, CATHODE::Scripting::Intern
 	}
 }
 
-static void CascadeMain(CompositeDataValue ^composite) {
+static void CascadeMain(OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^composite) {
 	if (composite == nullptr || composite->composite == nullptr)
 		return;
 
@@ -635,9 +630,9 @@ static void CascadeMain(CompositeDataValue ^composite) {
 }
 
 static void resetGlobalVariables() {
-	compositesById = gcnew System::Collections::Generic::List < System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^ >(0);
-	models = {};
-	modelReferences = {};
+	OpenCAGELevelViewer::AllInOne::ContentManager::compositesById = gcnew System::Collections::Generic::List < System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^ >(0);
+	OpenCAGELevelViewer::AllInOne::ContentManager::models = {};
+	OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences = {};
 
 	{
 		GC::Collect();
@@ -648,29 +643,29 @@ static void resetGlobalVariables() {
 }
 
 static void updatePositionMatrixes() {
-	for (size_t i = 0; i < compositesById->Count; i++) {
-		System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^entityShortGuidPath = compositesById->ToArray()[i];
+	for (size_t i = 0; i < OpenCAGELevelViewer::AllInOne::ContentManager::compositesById->Count; i++) {
+		System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^entityShortGuidPath = OpenCAGELevelViewer::AllInOne::ContentManager::compositesById->ToArray()[i];
 
-		ModelReferenceDataValue ^modelReference = nullptr;
+		OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceDataValue ^modelReference = nullptr;
 
 		glm::vec3 pos {};
 		glm::vec3 rot {};
 
 		{
-			CompositeDataValue ^current = entityDataRoot.operator CompositeDataValue ^ ();
+			OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^current = OpenCAGELevelViewer::AllInOne::ContentManager::entityDataRoot.operator OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^ ();
 			array < CATHODE::Scripting::ShortGuid > ^entityPathAsArray = entityShortGuidPath->ToArray();
 
 			for (size_t i = 0; i < entityPathAsArray->Length; i++) {
 				CATHODE::Scripting::ShortGuid shortGuid = entityPathAsArray[i];
-				EntityDataValue ^entityDataValue = current->children[shortGuid];
+				OpenCAGELevelViewer::AllInOne::ContentManager::EntityDataValue ^entityDataValue = current->children[shortGuid];
 
 				pos += glm::vec3(entityDataValue->transform->position.X, entityDataValue->transform->position.Y, entityDataValue->transform->position.Z);
 				rot += glm::vec3(entityDataValue->transform->rotation.X, entityDataValue->transform->rotation.Y, entityDataValue->transform->rotation.Z);
 
 				if (i == entityPathAsArray->Length - 1)
-					modelReference = dynamic_cast < ModelReferenceDataValue ^ >(entityDataValue);
+					modelReference = dynamic_cast < OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceDataValue ^ >(entityDataValue);
 				else
-					current = dynamic_cast < CompositeDataValue ^ >(entityDataValue);
+					current = dynamic_cast < OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^ >(entityDataValue);
 			}
 		}
 
@@ -689,7 +684,7 @@ static void updatePositionMatrixes() {
 		
 		//std::vector < OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL > &currentModelReferences = modelReferences[modelReferenceId];
 
-		for (OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL &currentModelRefernceGl : modelReferences[modelReference->modelReferenceId]) {
+		for (OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL &currentModelRefernceGl : OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences[modelReference->modelReferenceId]) {
 			//newMat4[0]
 			//if (newMat4 != glm::mat4(1))
 			currentModelRefernceGl.worldMatrix = newMat4;
@@ -743,6 +738,11 @@ void OpenCAGELevelViewer::AllInOne::ContentManager::threadMain(std::atomic_flag 
 			}
 
 			resetGlobalVariables();
+			{
+				CMStatus localCmStatus = cmStatus.load();
+				localCmStatus.currentStatus = CMStatusEnum::DIRTY;
+				cmStatus.store(localCmStatus);
+			}
 
 			if (currentGameRoot.empty() || currentLevel.empty())
 				continue;
@@ -763,33 +763,42 @@ void OpenCAGELevelViewer::AllInOne::ContentManager::threadMain(std::atomic_flag 
 		if (compositeDirty && !compositeGuid.IsInvalid && levelContentInstance.operator LevelContent ^() != nullptr) {
 			compositeDirty = false;
 
-			resetGlobalVariables();
-
-			//std::cout << MarshalCliString(currentCompositeGuid.ToByteString()) << std::endl;
-
-			entityDataRoot = gcnew CompositeDataValue { };
-
 			{
-				GC::Collect();
-				GC::WaitForPendingFinalizers();
-				GC::Collect();
-				GC::WaitForPendingFinalizers();
+				CMStatus localCmStatus = cmStatus.load();
+				localCmStatus.currentStatus = CMStatusEnum::LOADING;
+				cmStatus.store(localCmStatus);
 			}
 
-			entityDataRoot->composite = levelContentInstance->Commands->GetComposite(compositeGuid);
-
-			std::cout << "Cascade" << std::endl;
-
-			CascadeMain(entityDataRoot);
-			updatePositionMatrixes();
-
 			{
-				CompositeDataValue ^dataValue = entityDataRoot;
+				std::lock_guard globalVarLockGuard(OpenCAGELevelViewer::AllInOne::ContentManager::cmMutex);
+				resetGlobalVariables();
 
-				std::cout << "professional do nothing" << std::endl;
+				//std::cout << MarshalCliString(currentCompositeGuid.ToByteString()) << std::endl;
+
+				entityDataRoot = gcnew CompositeDataValue { };
+
+				{
+					GC::Collect();
+					GC::WaitForPendingFinalizers();
+					GC::Collect();
+					GC::WaitForPendingFinalizers();
+				}
+
+				entityDataRoot->composite = levelContentInstance->Commands->GetComposite(compositeGuid);
+
+				std::cout << "Cascade" << std::endl;
+
+				CascadeMain(entityDataRoot);
+				updatePositionMatrixes();
+
+				/*{
+					CompositeDataValue ^dataValue = entityDataRoot;
+
+					std::cout << "professional do nothing" << std::endl;
+				}
+
+				std::cout << "test" << std::endl;*/
 			}
-
-			std::cout << "test" << std::endl;
 
 			//CATHODE::Scripting::Composite ^currentComposite = levelContentInstance->Commands->GetComposite(currentCompositeGuid);
 
