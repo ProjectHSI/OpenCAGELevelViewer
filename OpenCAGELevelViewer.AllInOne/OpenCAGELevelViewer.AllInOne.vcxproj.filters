@@ -89,9 +89,12 @@
     <None Include="FragmentShader.frag">
       <Filter>Resource Files</Filter>
     </None>
-    <None Include="VertexShader.vert">
+    <None Include="AxisVertexShader.vert">
       <Filter>Resource Files</Filter>
     </None>
     <None Include="VAOAttributeTracking.md" />
+    <None Include="VertexShader.vert">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

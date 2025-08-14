@@ -1,3 +1,5 @@
+#include "pch.h"
+
 #include "Shader.h"
 
 //OpenCAGELevelViewer::_3DView::Shader::Shader::Shader(std::string_view vertexShader, std::string_view fragmentShader) { }

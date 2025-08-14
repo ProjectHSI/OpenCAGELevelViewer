@@ -443,6 +443,9 @@
     <None Include="AxisArrow.obj">
       <DeploymentContent>true</DeploymentContent>
     </None>
+    <None Include="AxisVertexShader.vert">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
     <None Include="VertexShader.vert">
       <DeploymentContent>true</DeploymentContent>
     </None>

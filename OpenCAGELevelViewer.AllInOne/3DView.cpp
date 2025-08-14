@@ -1,18 +1,11 @@
+#include "pch.h"
+
 #include "3DView.h"
 #include <imgui.h>
-
-#include <glbinding/CallbackMask.h>
-#include <glbinding/FunctionCall.h>
-#include <glbinding/glbinding.h>
-#include <glbinding/Version.h>
-
-#include <glbinding/getProcAddress.h>
-#include <glbinding/gl/gl.h>
 
 #include "ContentManager.h"
 #include <cstdint>
 #include <fstream>
-#include <glbinding/gl/gl.h>
 #include <iostream>
 #include <optional>
 
@@ -21,13 +14,9 @@
 #include <assimp/scene.h>
 
 #include <exception>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
 #include <map>
 #include <variant>
 
-#include <SDL3/SDL.h>
 #include <filesystem>
 
 using namespace gl;
@@ -474,9 +463,9 @@ void OpenCAGELevelViewer::_3DView::Initalise(void) {
 		std::cout << std::filesystem::current_path() << std::endl;
 
 		baseProgram = createShaderProgram("VertexShader.vert", "FragmentShader.frag");
-		axisXProgram = createShaderProgram("VertexShader.vert", "AxisFragmentShaderX.frag");
-		axisYProgram = createShaderProgram("VertexShader.vert", "AxisFragmentShaderY.frag");
-		axisZProgram = createShaderProgram("VertexShader.vert", "AxisFragmentShaderZ.frag");
+		axisXProgram = createShaderProgram("AxisVertexShader.vert", "AxisFragmentShaderX.frag");
+		axisYProgram = createShaderProgram("AxisVertexShader.vert", "AxisFragmentShaderY.frag");
+		axisZProgram = createShaderProgram("AxisVertexShader.vert", "AxisFragmentShaderZ.frag");
 	}
 #pragma endregion
 
@@ -732,72 +721,274 @@ static void renderUnmanagedModelReference(OpenCAGELevelViewer::ContentManager::U
 }
 #endif
 
-GLuint MRVbo = 0;
-
-struct MRVBOAllocation {
+struct MRBufferAllocation {
 	size_t modelId;
 	size_t size;
 	size_t offset;
 };
 
-std::vector < MRVBOAllocation > MRVboAllocations {};
+std::vector < MRBufferAllocation > MRVboAllocations {};
+std::vector < MRBufferAllocation > MREboAllocations {};
+std::vector < MRBufferAllocation > MRIboAllocations {};
+std::vector < MRBufferAllocation > MRIndirectBufferAllocations {};
 
-GLuint MREbo = 0;
-GLuint MRIbo = 0;
-GLuint MRIDbo = 0;
-GLuint MRVao = 0;
+GLuint MRVertexBuffer = 0;
+GLuint MRElementBuffer = 0;
+GLuint MRInstanceBuffer = 0;
+GLuint MRIndirectBuffer = 0;
+GLuint MRVertexArray = 0;
 
 std::atomic_flag CMLoaded {};
 static void regenerateMRBuffers() {
-	if (MRVbo == 0)
-		glGenBuffers(1, &MRVbo);
-	if (MREbo == 0)
-		glGenBuffers(1, &MREbo);
-	if (MRIbo == 0)
-		glGenBuffers(1, &MRIbo);
-	if (MRVao == 0)
-		glGenVertexArrays(1, &MRVao);
+	if (MRVertexBuffer == 0)
+		glGenBuffers(1, &MRVertexBuffer);
+	if (MRElementBuffer == 0)
+		glGenBuffers(1, &MRElementBuffer);
+	if (MRInstanceBuffer == 0)
+		glGenBuffers(1, &MRInstanceBuffer);
+	if (MRIndirectBuffer == 0)
+		glGenBuffers(1, &MRIndirectBuffer);
+	if (MRVertexArray == 0)
+		glGenVertexArrays(1, &MRVertexArray);
+	
+	std::cout << "OpenGL Objects:" << std::endl;
+	std::cout << MRVertexBuffer << std::endl;
+	std::cout << MRElementBuffer << std::endl;
+	std::cout << MRInstanceBuffer << std::endl;
+	std::cout << MRIndirectBuffer << std::endl;
+	std::cout << MRVertexArray << std::endl;
 }
 
 static void destroyMRBuffers() {
-	if (MRVbo != 0) {
-		glDeleteBuffers(1, &MRVbo);
-		MRVbo = 0;
+	if (MRVertexBuffer != 0) {
+		glDeleteBuffers(1, &MRVertexBuffer);
+		MRVertexBuffer = 0;
 	}
-	if (MREbo != 0) {
-		glDeleteBuffers(1, &MREbo);
-		MREbo = 0;
+	if (MRElementBuffer != 0) {
+		glDeleteBuffers(1, &MRElementBuffer);
+		MRElementBuffer = 0;
 	}
-	if (MRIbo != 0) {
-		glDeleteBuffers(1, &MRIbo);
-		MRIbo = 0;
+	if (MRInstanceBuffer != 0) {
+		glDeleteBuffers(1, &MRInstanceBuffer);
+		MRInstanceBuffer = 0;
 	}
-	if (MRVao != 0) {
-		glDeleteVertexArrays(1, &MRVao);
-		MRVao = 0;
+	if (MRIndirectBuffer != 0) {
+		glDeleteBuffers(1, &MRIndirectBuffer);
+		MRIndirectBuffer = 0;
 	}
+	if (MRVertexArray != 0) {
+		glDeleteVertexArrays(1, &MRVertexArray);
+		MRVertexArray = 0;
+	}
+
+	MRVboAllocations.clear();
+	MREboAllocations.clear();
+	MRIboAllocations.clear();
+	MRIndirectBufferAllocations.clear();
 }
 
-static void allocateMRVBO() {
+static void allocateMRVEBO() {
 	std::lock_guard cmLock(OpenCAGELevelViewer::AllInOne::ContentManager::cmMutex);
+
+	std::vector < OpenCAGELevelViewer::AllInOne::ContentManager::CMVertex > workingVbo;
+	std::vector < uint32_t > workingEbo;
+	std::vector < MRBufferAllocation > workingVboAllocations;
+	std::vector < MRBufferAllocation > workingEboAllocations;
+
+	for (const auto &model : OpenCAGELevelViewer::AllInOne::ContentManager::models) {
+		{
+			MRBufferAllocation vboAllocation {
+				model.second.modelId,
+				model.second.vertices.size(),
+				(!workingVboAllocations.empty()) ? (workingVboAllocations[workingVboAllocations.size() - 1].offset + workingVboAllocations[workingVboAllocations.size() - 1].size) : 0
+			};
+
+			workingVboAllocations.push_back(vboAllocation);
+
+			MRBufferAllocation eboAllocation {
+				model.second.modelId,
+				model.second.elements.size(),
+				(!workingEboAllocations.empty()) ? (workingEboAllocations[workingEboAllocations.size() - 1].offset + workingEboAllocations[workingEboAllocations.size() - 1].size) : 0
+			};
+
+			workingEboAllocations.push_back(eboAllocation);
+		}
+
+		{
+			workingVbo.insert(workingVbo.end(), model.second.vertices.begin(), model.second.vertices.end());
+			for (const auto index : model.second.elements) {
+				workingEbo.push_back(((!workingEboAllocations.empty()) ? (workingEboAllocations[workingEboAllocations.size() - 1].offset) : 0) + index);
+			}
+		}
+	}
+
+	glBindBuffer(GL_ARRAY_BUFFER, MRVertexBuffer);
+	glBufferData(GL_ARRAY_BUFFER, workingVbo.size() * sizeof(decltype(workingVbo)::value_type), workingVbo.data(), GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, MRElementBuffer);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, workingEbo.size() * sizeof(decltype(workingEbo)::value_type), workingEbo.data(), GL_STATIC_DRAW);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+	MRVboAllocations = workingVboAllocations;
+	MREboAllocations = workingEboAllocations;
 
 	//OpenCAGELevelViewer::AllInOne::ContentManager::
 }
 
+//int test = GL_UNSIGNED_INT64_ARB;
+
+static void fillInMRInstanceBuffer() {
+	std::lock_guard cmLock(OpenCAGELevelViewer::AllInOne::ContentManager::cmMutex);
+
+	std::vector < OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL > workingInstanceBuffer;
+	std::vector < MRBufferAllocation > workingInstanceBufferAllocations;
+
+	for (const auto &modelReferences : OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences) {
+		if (modelReferences.second.empty())
+			continue;
+
+		workingInstanceBuffer.insert(workingInstanceBuffer.end(), modelReferences.second.begin(), modelReferences.second.end());
+
+		MRBufferAllocation instanceBufferAllocation {
+			modelReferences.first,
+			modelReferences.second.size(),
+			(!workingInstanceBufferAllocations.empty()) ? workingInstanceBufferAllocations[workingInstanceBufferAllocations.size() - 1].offset + workingInstanceBufferAllocations[workingInstanceBufferAllocations.size() - 1].size : 0};
+		workingInstanceBufferAllocations.push_back(instanceBufferAllocation);
+	}
+
+	glBindBuffer(GL_ARRAY_BUFFER, MRInstanceBuffer);
+	glBufferData(GL_ARRAY_BUFFER, workingInstanceBuffer.size() * sizeof(decltype(workingInstanceBuffer)::value_type), workingInstanceBuffer.data(), GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	MRIboAllocations = workingInstanceBufferAllocations;
+}
+
+// taken straight from the opengl documentation.
+struct DrawElementsIndirectCommand {
+	GLuint   count;
+	GLuint   instanceCount;
+	GLuint   firstIndex;
+	GLint    baseVertex;
+	GLuint   baseInstance;
+};
+
+static void fillInMRIndirectBuffer() {
+	std::lock_guard cmLock(OpenCAGELevelViewer::AllInOne::ContentManager::cmMutex);
+	
+	std::vector < DrawElementsIndirectCommand > workingIndirectBuffer {};
+	std::vector < MRBufferAllocation > workingIndirectBufferAllocations {};
+
+	for (size_t i = 0; i < MRIboAllocations.size(); i++) {
+		DrawElementsIndirectCommand deic {};
+
+		deic.count = MREboAllocations[i].size;
+		deic.instanceCount = MRIboAllocations[i].size;
+		deic.firstIndex = MREboAllocations[i].offset;
+		deic.baseVertex = 0; // We already account for this.
+		deic.baseInstance = MRIboAllocations[i].offset;
+
+		workingIndirectBuffer.push_back(deic);
+
+
+		{
+			MRBufferAllocation indirectBufferAllocation {
+				MRIboAllocations[i].modelId,
+				1,
+				i
+			};
+
+			workingIndirectBufferAllocations.push_back(indirectBufferAllocation);
+		}
+	}
+
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, MRIndirectBuffer);
+	glBufferData(GL_DRAW_INDIRECT_BUFFER, workingIndirectBuffer.size() * sizeof(decltype(workingIndirectBuffer)::value_type), workingIndirectBuffer.data(), GL_STATIC_DRAW);
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+
+	MRIndirectBufferAllocations = workingIndirectBufferAllocations;
+}
+
+GLuint64 test = 5;
+GLenum test2 = GL_UNSIGNED_INT64_ARB;
+
+static void makeMRVAO() {
+	glBindVertexArray(MRVertexArray);
+
+	glBindVertexBuffer(0, MRVertexBuffer, 0, sizeof(OpenCAGELevelViewer::AllInOne::ContentManager::CMVertex));
+	glVertexAttribFormat(0, 3, GL_FLOAT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::CMVertex, pos));
+	glVertexAttribFormat(1, 4, GL_UNSIGNED_BYTE, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::CMVertex, col));
+	glVertexAttribBinding(0, 0);
+	glVertexAttribBinding(1, 0);
+	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(1);
+
+	size_t test = offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, worldPosition);
+
+	std::cout << "instance id offset " << offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, instanceId) << std::endl;
+	std::cout << "world pos offset " << offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, worldPosition) << std::endl;
+	std::cout << "world rot offset " << offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, worldRotation) << std::endl;
+	std::cout << "col offset offset " << offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, colOffset) << std::endl;
+
+	glBindVertexBuffer(1, MRInstanceBuffer, 0, sizeof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL));
+	glVertexAttribFormat(2, 1, GL_UNSIGNED_INT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, instanceId));
+	glVertexAttribFormat(3, 3, GL_FLOAT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, worldPosition));
+	glVertexAttribFormat(4, 3, GL_FLOAT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, worldRotation));
+	glVertexAttribFormat(5, 4, GL_FLOAT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, colOffset));
+	glVertexAttribBinding(2, 1);
+	glVertexAttribBinding(3, 1);
+	glVertexAttribBinding(4, 1);
+	glVertexAttribBinding(5, 1);
+	glVertexBindingDivisor(1, 1);
+	/*glVertexAttribDivisor(2, 1);
+	glVertexAttribDivisor(3, 1);
+	glVertexAttribDivisor(4, 1);
+	glVertexAttribDivisor(5, 1);*/
+	glEnableVertexAttribArray(2);
+	glEnableVertexAttribArray(3);
+	glEnableVertexAttribArray(4);
+	glEnableVertexAttribArray(5);
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, MRElementBuffer);
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, MRIndirectBuffer);
+
+	glBindVertexArray(0);
+}
+
 static void regenerateMRVAO() {
+	std::lock_guard cmLock(OpenCAGELevelViewer::AllInOne::ContentManager::cmMutex);
 	OpenCAGELevelViewer::AllInOne::ContentManager::CMStatusEnum cmStatus = OpenCAGELevelViewer::AllInOne::ContentManager::cmStatus.load().currentStatus;
 
-	if (cmStatus == OpenCAGELevelViewer::AllInOne::ContentManager::CMStatusEnum::LOADING) {
-		CMLoaded.clear();
+	glBindVertexArray(0);
 
-		// free up vram
-		destroyMRBuffers();
+	switch (cmStatus) {
+		case OpenCAGELevelViewer::AllInOne::ContentManager::CMStatusEnum::LOADING:
+			{
+				destroyMRBuffers();
+
+				break;
+			}
+		case OpenCAGELevelViewer::AllInOne::ContentManager::CMStatusEnum::DIRTY:
+			{
+				destroyMRBuffers();
+				regenerateMRBuffers();
+				 
+				allocateMRVEBO();
+				fillInMRInstanceBuffer();
+				fillInMRIndirectBuffer();
+				makeMRVAO();
+
+				OpenCAGELevelViewer::AllInOne::ContentManager::cmStatus.store({OpenCAGELevelViewer::AllInOne::ContentManager::CMStatusEnum::READY});
+
+				break;
+			}
+		case OpenCAGELevelViewer::AllInOne::ContentManager::CMStatusEnum::READY:
+			break;
 	}
-	if (OpenCAGELevelViewer::AllInOne::ContentManager::cmStatus.load().currentStatus == OpenCAGELevelViewer::AllInOne::ContentManager::CMStatusEnum::LOADING)
-		return;
 }
 
 void OpenCAGELevelViewer::_3DView::Render(ImVec2 windowSize/*, std::optional<std::variant<OpenCAGELevelViewer::ContentManager::UnmanagedModelReference, OpenCAGELevelViewer::ContentManager::UnmanagedComposite>> unmanagedModelReference*//*, int msaaSamples*/) {
+	regenerateMRVAO();
+
 #pragma region Rendering Start
 	glBindFramebuffer(GL_FRAMEBUFFER, _3dViewRenderFbo);
 
@@ -827,7 +1018,7 @@ void OpenCAGELevelViewer::_3DView::Render(ImVec2 windowSize/*, std::optional<std
 	if (fov < 30.0f) fov = 30.0f;
 	else if (fov > 120.0f) fov = 120.0f;
 
-	glm::mat4 projection = glm::perspective(glm::radians(fov), ( float ) windowSize.x / ( float ) windowSize.y, 0.1f, 100.0f);
+	glm::mat4 projection = glm::perspective(glm::radians(fov), ( float ) windowSize.x / ( float ) windowSize.y, 0.1f, 1000.0f);
 	glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 #pragma endregion
 
@@ -960,6 +1151,16 @@ void OpenCAGELevelViewer::_3DView::Render(ImVec2 windowSize/*, std::optional<std
 	//glBindFramebuffer(GL_READ_FRAMEBUFFER, _3dViewRenderFbo);
 	//glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _3dViewOutputFbo);
 	//glBlitFramebuffer(0, 0, static_cast< GLsizei >(windowSize.x), static_cast< GLsizei >(windowSize.y), 0, 0, static_cast< GLsizei >(windowSize.x), static_cast< GLsizei >(windowSize.y), GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+	if (MRVertexArray != 0) {
+		glUseProgram(baseProgram);
+		glUniformMatrix4fv(glGetUniformLocation(baseProgram, "projection"), 1, GL_FALSE, &projection[0][0]);
+		glUniformMatrix4fv(glGetUniformLocation(baseProgram, "view"), 1, GL_FALSE, &view[0][0]);
+
+		glBindVertexArray(MRVertexArray);
+		glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, nullptr, MRIndirectBufferAllocations.size(), 0);
+		glBindVertexArray(0);
+	}
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 #pragma endregion

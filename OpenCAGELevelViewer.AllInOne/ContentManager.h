@@ -34,23 +34,24 @@ namespace OpenCAGELevelViewer {
 		#pragma pack(1)
 			struct CMVertex {
 				glm::fvec3 pos;
-				glm::uvec4 col;
+				glm::u8vec4 col;
 			};
 		#pragma pack()
 
 			struct CMModel {
-				int modelId;
+				int modelId {};
 				std::vector < CMVertex >    vertices {};
 				std::vector < uint16_t >    elements {};
-				std::string meshName;
-				std::string lodName;
+				std::string meshName {};
+				std::string lodName {};
 			};
 
 		#pragma pack(1)
 			struct ModelReferenceGL {
 				uint32_t instanceId = 0;
-				glm::fmat4 worldMatrix {};
-				float shine = 0;
+				glm::fvec3 worldPosition {};
+				glm::fvec3 worldRotation {};
+				glm::fvec4 colOffset {};
 			};
 		#pragma pack()
 

@@ -1,18 +1,11 @@
+#pragma once
+
+#include "pch.h"
+
 #include <cstdint>
 #include <memory>
 #include <string>
 
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-
-#pragma warning( push )
-#pragma warning( disable : 4820 )
-#include <windows.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <iphlpapi.h>
-#pragma warning( pop )
 #include <vector>
 #include <tuple>
 #include <chrono>
@@ -107,7 +100,7 @@ namespace OpenCAGELevelViewer {
 				T t {};
 				std::vector<char> charArray = _getSockOpt(level, optname);
 
-				std::memcpy(&t, charArray.data(), min(sizeof(t), charArray.size()));
+				std::memcpy(&t, charArray.data(), std::min(sizeof(t), charArray.size()));
 
 				return t;
 			}

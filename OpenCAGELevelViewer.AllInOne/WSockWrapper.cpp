@@ -1,17 +1,11 @@
+#include "pch.h"
+
 #include "WSockWrapper.h"
 
 #include <cstdint>
 #include <memory>
 #include <string>
 
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-
-#include <windows.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <iphlpapi.h>
 #include <map>
 #include <assert.h>
 #include <cassert>

@@ -1,4 +1,6 @@
 //#include "OpenCAGELevelViewer.h"
+#include "pch.h"
+
 #include "handoff.h"
 
 #include <SDL3/SDL.h>
@@ -13,14 +15,6 @@
 #include "ContentManager.h"
 #include <functional>
 
-#include <glbinding/glbinding.h>
-#include <glbinding/Version.h>
-#include <glbinding/FunctionCall.h>
-#include <glbinding/CallbackMask.h>
-
-#include <glbinding/gl/gl.h>
-#include <glbinding/getProcAddress.h>
-
 #include "3DView.h"
 
 using namespace gl;
@@ -29,12 +23,18 @@ using namespace std::chrono_literals;
 SDL_Window *sdlWindow;
 SDL_Renderer *sdlRenderer;
 
-void fatalSdlError(std::string baseErrorMessage) {
-	std::string errorMessage = baseErrorMessage + "\n\n" + SDL_GetError() + "\n\n" + "OpenCAGE C++ Level Viewer will now exit.";
+void fatalError(std::string baseErrorMessage) {
+	std::string errorMessage = baseErrorMessage + "\n\n" + "OpenCAGE C++ Level Viewer will now exit.";
 
 	SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "OpenCAGE C++ Level Viewer", errorMessage.data(), NULL);
 
 	exit(1);
+}
+
+void fatalSdlError(std::string baseErrorMessage) {
+	//std::string errorMessage = baseErrorMessage + "\n\;
+
+	fatalError(baseErrorMessage + "\n\n" + SDL_GetError());
 }
 
 static bool isDemoWindowOpen = true;
@@ -48,11 +48,19 @@ typedef std::chrono::steady_clock SteadyClock;
 typedef std::chrono::time_point < SteadyClock > SteadyClockTimePoint;
 SteadyClockTimePoint timeSinceConnectDialogOpen = SteadyClockTimePoint();
 
+#pragma managed(push, on)
+void forceCoreClr() {
+
+}
+#pragma managed(pop)
+
 int handoff(char **argv, int argc) {
 	//initalize_contentManager(); // let CoreCLR sort itself out, if needed.
 	// I'm not sure if this is needed anymore, but we'll keep it anyway if there's any surprises.
 
 	//openGlLoadingThreadIsDone.test_and_set();
+	
+	forceCoreClr();
 
 	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_GAMEPAD) < 0) {
 		fatalSdlError("SDL3 was unable to initalize one or more of its subsystems.");
@@ -64,7 +72,7 @@ int handoff(char **argv, int argc) {
 		fatalSdlError("SDL3 was unable to create a window.");
 	}
 
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 	//SDL_GL_SetAttribute()
@@ -81,6 +89,17 @@ int handoff(char **argv, int argc) {
 	/*if (SDL_GL_GetCurrentContext()) {
 		fatalSdlError("An OpenGL context wasn't created when the renderer was made.");
 	}*/
+
+	int gotMajorVersion = 0;
+	int gotMinorVersion = 0;
+	SDL_GL_GetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, &gotMajorVersion);
+	SDL_GL_GetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, &gotMinorVersion);
+
+	//__debugbreak();
+
+	if ((gotMajorVersion != 4 || gotMinorVersion != 3) && SDL_GL_ExtensionSupported("ARB_gpu_shader_int64")) {
+		fatalError("Your system does not support the needed OpenGL version and/or extensions.\nCheck that you have the latest graphics drivers for your card installed, and that your card is correctly configured.");
+	}
 
 	SDL_GL_MakeCurrent(sdlWindow, gl_context);
 	SDL_GL_SetSwapInterval(1);

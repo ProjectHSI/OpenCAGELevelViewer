@@ -1,9 +1,9 @@
+#include "pch.h"
+
 #include "ContentManager.h"
 
 #include <chrono>
 #include <iostream>
-#include <msclr/gcroot.h>
-#include <msclr/marshal.h>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -569,6 +569,7 @@ static void CascadeEntity(OpenCAGELevelViewer::AllInOne::ContentManager::Composi
 											{
 												OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL modelReferenceGl;
 												modelReferenceGl.instanceId = modelReferenceDataValue->modelReferenceId;
+												modelReferenceGl.colOffset = glm::fvec4(1.0f);
 
 												if (!OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences.contains(cmModel->modelId))
 													OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences[cmModel->modelId] = {};
@@ -622,6 +623,7 @@ static void CascadeMain(OpenCAGELevelViewer::AllInOne::ContentManager::Composite
 		);
 
 	for each (CATHODE::Scripting::Internal::Entity ^entity in entities) {
+		//std::this_thread::yield();
 		CascadeEntity(composite, entity);
 	}
 	//System::Type ^type = entities->GetType();
@@ -672,13 +674,13 @@ static void updatePositionMatrixes() {
 		assert(modelReference != nullptr);
 		[[assume(modelReference != nullptr)]];
 
-		glm::mat4 newMat4 = glm::mat4(1);
+		//glm::mat4 newMat4 = glm::mat4(1);
 
-		newMat4 = glm::translate(newMat4, pos);
-		
-		// prevents NaN mat4
-		if (rot != glm::vec3(0.0f))
-			newMat4 = glm::rotate(newMat4, glm::radians(1.0f), rot);
+		//newMat4 = glm::translate(newMat4, pos);
+		//
+		//// prevents NaN mat4
+		//if (rot != glm::vec3(0.0f))
+		//	newMat4 = glm::rotate(newMat4, glm::radians(1.0f), rot);
 
 		//size_t modelReferenceId = modelReference->modelReferenceId;
 		
@@ -687,7 +689,8 @@ static void updatePositionMatrixes() {
 		for (OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL &currentModelRefernceGl : OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences[modelReference->modelReferenceId]) {
 			//newMat4[0]
 			//if (newMat4 != glm::mat4(1))
-			currentModelRefernceGl.worldMatrix = newMat4;
+			currentModelRefernceGl.worldPosition = pos;
+			currentModelRefernceGl.worldRotation = rot;
 		}
 
 		//modelReference->modelReferenceId
@@ -740,7 +743,7 @@ void OpenCAGELevelViewer::AllInOne::ContentManager::threadMain(std::atomic_flag 
 			resetGlobalVariables();
 			{
 				CMStatus localCmStatus = cmStatus.load();
-				localCmStatus.currentStatus = CMStatusEnum::DIRTY;
+				localCmStatus.currentStatus = CMStatusEnum::LOADING;
 				cmStatus.store(localCmStatus);
 			}
 
@@ -788,8 +791,17 @@ void OpenCAGELevelViewer::AllInOne::ContentManager::threadMain(std::atomic_flag 
 
 				std::cout << "Cascade" << std::endl;
 
+				//std::this_thread::yield();
 				CascadeMain(entityDataRoot);
+
+				//std::this_thread::yield();
 				updatePositionMatrixes();
+
+				{
+					CMStatus localCmStatus = cmStatus.load();
+					localCmStatus.currentStatus = CMStatusEnum::DIRTY;
+					cmStatus.store(localCmStatus);
+				}
 
 				/*{
 					CompositeDataValue ^dataValue = entityDataRoot;

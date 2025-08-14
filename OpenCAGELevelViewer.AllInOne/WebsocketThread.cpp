@@ -1,3 +1,5 @@
+#include "pch.h"
+
 #include "WebsocketThread.h"
 
 #include "WSockWrapper.h"
@@ -11,8 +13,6 @@
 #include <cstdlib>
 #include <iostream>
 #include <limits>
-#include <msclr/gcroot.h>
-#include <msclr/marshal.h>
 #include <mutex>
 #include <nlohmann/json.hpp>
 #include <random>
