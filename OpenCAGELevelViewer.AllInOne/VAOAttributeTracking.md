@@ -9,6 +9,6 @@ I doubt we'd ever reach the 16 limit considering what this is used for, but this
 | 1                       | 0              | Vertex   | Position             | `glm::fvec3` | `vec3`      | `OpenCAGELevelViewer::AllInOne::ContentManager::CMVertex::pos`                   |
 | 2                       | 1              | Vertex   | Vertex Colour        | `glm::fvec4` | `vec4`      | `OpenCAGELevelViewer::AllInOne::ContentManager::CMVertex::col`                   |
 | 3                       | 2              | Instance | Instance ID          | `uint32`     | `uint`      | `OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL::instanceId`    |
-| 4                       | 3              | Instance | Instance Position    | `fvec3`      | `vec3`      | `OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL::worldPosition` |
-| 5                       | 4              | Instance | Instance Rotation    | `fvec3`      | `vec3`      | `OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL::worldRotation` |
-| 6                       | 5              | Instance | Colour Offset        | `fvec4`      | `vec4`      | `OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL::colOffset`     |
+| 4                       | 3              | Instance | Instance Position    | `glm::fvec3` | `vec3`      | `OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL::worldPosition` |
+| 5                       | 4              | Instance | Instance Rotation    | `glm::fvec3` | `vec3`      | `OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL::worldRotation` |
+| 6                       | 5              | Instance | Colour Offset        | `glm::fvec4` | `vec4`      | `OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL::colOffset`     |
