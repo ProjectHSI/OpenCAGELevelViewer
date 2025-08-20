@@ -49,5 +49,5 @@ void main()
 	
 	colour = vCol * iColOffset;
 
-	gl_Position = projection * view * worldMatrix * vec4(vPos, 1.0);
+	gl_Position = projection * view * /*worldMatrix * */vec4(vPos, 1.0) * 0.01;
 }

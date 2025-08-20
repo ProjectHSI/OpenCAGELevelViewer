@@ -40,4 +40,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+extern msclr::gcroot< msclr::interop::marshal_context ^ > msclr_context;
+
+#define MarshalCliString(cliString) msclr_context->marshal_as<const char *>(cliString)
+#define ConvertCliStringToCXXString(cliString) std::string(MarshalCliString(cliString))
+
 #endif //PCH_H

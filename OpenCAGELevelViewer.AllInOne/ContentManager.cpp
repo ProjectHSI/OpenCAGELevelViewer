@@ -2,11 +2,14 @@
 
 #include "ContentManager.h"
 
+#include "handoff.h"
+
 #include <chrono>
 #include <iostream>
 #include <mutex>
 #include <string>
 #include <thread>
+#include <filesystem>
 
 //#include <cliext/hash_map>
 //#include <cliext/list>
@@ -32,10 +35,7 @@
 using namespace std::chrono_literals;
 using namespace System;
 
-static msclr::gcroot< msclr::interop::marshal_context ^ > msclr_context = gcnew msclr::interop::marshal_context();
-
-#define MarshalCliString(cliString) msclr_context->marshal_as<const char *>(cliString)
-#define ConvertCliStringToCXXString(cliString) std::string(MarshalCliString(cliString))
+std::hash < std::string > stringHasher {};
 
 std::mutex gameRootMutex;
 std::string gameRoot = "";
@@ -48,6 +48,11 @@ std::string OpenCAGELevelViewer::AllInOne::ContentManager::getGameRoot() {
 	return gameRoot;
 }
 
+size_t OpenCAGELevelViewer::AllInOne::ContentManager::getGameRootHash() {
+	std::lock_guard<std::mutex> lock(gameRootMutex);
+	return stringHasher(gameRoot);
+}
+
 std::mutex levelMutex;
 std::string level = "";
 void OpenCAGELevelViewer::AllInOne::ContentManager::setLevel(const std::string &_level) {
@@ -57,6 +62,11 @@ void OpenCAGELevelViewer::AllInOne::ContentManager::setLevel(const std::string &
 std::string OpenCAGELevelViewer::AllInOne::ContentManager::getLevel() {
 	std::lock_guard<std::mutex> lock(levelMutex);
 	return level;
+}
+
+size_t OpenCAGELevelViewer::AllInOne::ContentManager::getLevelHash() {
+	std::lock_guard<std::mutex> lock(levelMutex);
+	return stringHasher(level);
 }
 
 std::mutex compositeMutex;
@@ -75,11 +85,20 @@ uint32_t OpenCAGELevelViewer::AllInOne::ContentManager::getComposite() {
 	return compositeGuid.AsUInt32;
 }
 
-ref struct LevelContent {
-	CATHODE::Commands ^Commands;
-	CATHODE::Models ^Models;
-	CATHODE::RenderableElements ^Renderables;
-};
+std::vector<std::string> OpenCAGELevelViewer::AllInOne::ContentManager::getAllLevels() {
+	if (std::filesystem::exists(std::filesystem::path(gameRoot).append("DATA/ENV/PRODUCTION"))) {
+		std::vector<std::string> levels;
+		for (const auto &entry : std::filesystem::directory_iterator(std::filesystem::path(gameRoot).append("DATA/ENV/PRODUCTION"))) {
+			// todo: dlc
+			if (entry.is_directory() && entry.path().filename() != "DLC") {
+				levels.push_back(entry.path().filename().string());
+			}
+		}
+		return levels;
+	}
+
+	return std::vector<std::string>();
+}
 
 #pragma region std::hash Injections
 //template<>
@@ -124,7 +143,7 @@ static_assert(std::is_standard_layout<type>::value) \
 IS_GL_COMPATIBLE(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL);
 IS_GL_COMPATIBLE(OpenCAGELevelViewer::AllInOne::ContentManager::CMVertex);
 
-msclr::gcroot < LevelContent ^ > levelContentInstance = nullptr;
+msclr::gcroot < OpenCAGELevelViewer::AllInOne::ContentManager::LevelContent ^ > OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance = nullptr;
 
 
 std::atomic < OpenCAGELevelViewer::AllInOne::ContentManager::CMStatus > OpenCAGELevelViewer::AllInOne::ContentManager::cmStatus {};
@@ -180,9 +199,9 @@ static T popTFromArray(size_t &rollingIndex, const std::vector < unsigned char >
 
 static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > getCMMModel(int entryIndex) {
 	if (!OpenCAGELevelViewer::AllInOne::ContentManager::models.contains(entryIndex)) {
-		CATHODE::Models::CS2::Component::LOD::Submesh ^submesh = levelContentInstance->Models->GetAtWriteIndex(entryIndex);
-		CATHODE::Models::CS2::Component::LOD ^lod = levelContentInstance->Models->FindModelLODForSubmesh(submesh);
-		CATHODE::Models::CS2 ^mesh = levelContentInstance->Models->FindModelForSubmesh(submesh);
+		CATHODE::Models::CS2::Component::LOD::Submesh ^submesh = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Models->GetAtWriteIndex(entryIndex);
+		CATHODE::Models::CS2::Component::LOD ^lod = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Models->FindModelLODForSubmesh(submesh);
+		CATHODE::Models::CS2 ^mesh = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Models->FindModelForSubmesh(submesh);
 
 		if (submesh == nullptr)
 			return std::nullopt;
@@ -561,7 +580,7 @@ static void CascadeEntity(OpenCAGELevelViewer::AllInOne::ContentManager::Composi
 
 								if (resourceRef != nullptr)
 									for (size_t i = 0; i < resourceRef->count; i++) {
-										CATHODE::RenderableElements::Element ^renderableElement = levelContentInstance->Renderables->Entries[resourceRef->index + i];
+										CATHODE::RenderableElements::Element ^renderableElement = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Renderables->Entries[resourceRef->index + i];
 
 										std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > cmModel = getCMMModel(renderableElement->ModelIndex);
 
@@ -590,7 +609,7 @@ static void CascadeEntity(OpenCAGELevelViewer::AllInOne::ContentManager::Composi
 				// composite
 				OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^compositeDataValue = gcnew OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue();
 				compositeDataValue->entity = functionEntity;
-				compositeDataValue->composite = levelContentInstance->Commands->GetComposite(functionEntity->function);
+				compositeDataValue->composite = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Commands->GetComposite(functionEntity->function);
 				compositeDataValue->transform = getManagedTransformFromEntity(functionEntity);
 
 				compositeDataValue->parent = parent;
@@ -735,9 +754,9 @@ void OpenCAGELevelViewer::AllInOne::ContentManager::threadMain(std::atomic_flag 
 			gameRootDirty = false;
 			levelDirty = false;
 
-			if (levelContentInstance.operator LevelContent ^ () != nullptr) {
-				delete levelContentInstance;
-				levelContentInstance = nullptr;
+			if (OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance.operator LevelContent ^ () != nullptr) {
+				delete OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance;
+				OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance = nullptr;
 			}
 
 			resetGlobalVariables();
@@ -750,20 +769,24 @@ void OpenCAGELevelViewer::AllInOne::ContentManager::threadMain(std::atomic_flag 
 			if (currentGameRoot.empty() || currentLevel.empty())
 				continue;
 
-			levelContentInstance = gcnew LevelContent();
+			{
+				std::lock_guard globalVarLockGuard(OpenCAGELevelViewer::AllInOne::ContentManager::cmMutex);
 
-			std::string levelPath = currentGameRoot + "/DATA/ENV/PRODUCTION/" + currentLevel + "/";
+				OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance = gcnew OpenCAGELevelViewer::AllInOne::ContentManager::LevelContent();
 
-			levelContentInstance->Commands = gcnew CATHODE::Commands(gcnew String((levelPath + "WORLD/COMMANDS.PAK").c_str()));
-			levelContentInstance->Models = gcnew CATHODE::Models(gcnew String((levelPath + "RENDERABLE/LEVEL_MODELS.PAK").c_str()));
-			levelContentInstance->Renderables = gcnew CATHODE::RenderableElements(gcnew String((levelPath + "WORLD/REDS.BIN").c_str()));
+				std::string levelPath = currentGameRoot + "/DATA/ENV/PRODUCTION/" + currentLevel + "/";
+
+				OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Commands = gcnew CATHODE::Commands(gcnew String((levelPath + "WORLD/COMMANDS.PAK").c_str()));
+				OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Models = gcnew CATHODE::Models(gcnew String((levelPath + "RENDERABLE/LEVEL_MODELS.PAK").c_str()));
+				OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Renderables = gcnew CATHODE::RenderableElements(gcnew String((levelPath + "WORLD/REDS.BIN").c_str()));
+			}
 		}
 
 		//LevelContent ^test = levelContentInstance.operator LevelContent ^ ();
 		
 		//std::cout << &test << std::endl;
 
-		if (compositeDirty && !compositeGuid.IsInvalid && levelContentInstance.operator LevelContent ^() != nullptr) {
+		if (compositeDirty && !compositeGuid.IsInvalid && OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance.operator OpenCAGELevelViewer::AllInOne::ContentManager::LevelContent ^() != nullptr) {
 			compositeDirty = false;
 
 			{
@@ -787,7 +810,7 @@ void OpenCAGELevelViewer::AllInOne::ContentManager::threadMain(std::atomic_flag 
 					GC::WaitForPendingFinalizers();
 				}
 
-				entityDataRoot->composite = levelContentInstance->Commands->GetComposite(compositeGuid);
+				entityDataRoot->composite = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Commands->GetComposite(compositeGuid);
 
 				std::cout << "Cascade" << std::endl;
 
@@ -816,7 +839,7 @@ void OpenCAGELevelViewer::AllInOne::ContentManager::threadMain(std::atomic_flag 
 
 			//std::cout << MarshalCliString(currentComposite->name) << std::endl;
 		} else if (compositeDirty)
-			if (levelContentInstance.operator LevelContent ^ () == nullptr)
+			if (OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance.operator LevelContent ^ () == nullptr)
 				std::cout << "Waiting for levelContent." << std::endl;
 			else if (compositeGuid.IsInvalid)
 				std::cout << "Composite GUID is invalid." << std::endl;

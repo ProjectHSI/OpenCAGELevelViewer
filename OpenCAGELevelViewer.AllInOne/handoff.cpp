@@ -3,19 +3,25 @@
 
 #include "handoff.h"
 
-#include <SDL3/SDL.h>
+#include "ContentManager.h"
+#include "WebsocketThread.h"
+#include <chrono>
+#include <functional>
 #include <imgui.h>
+#include <imgui_impl_opengl3.h>
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_sdlrenderer3.h>
-#include <imgui_impl_opengl3.h>
-#include <thread>
-#include <chrono>
 #include <iostream>
-#include "WebsocketThread.h"
-#include "ContentManager.h"
-#include <functional>
+#include <SDL3/SDL.h>
+#include <string>
+#include <thread>
+#include <variant>
 
 #include "3DView.h"
+#include <cstdint>
+#include <map>
+#include <unordered_map>
+#include <vector>
 
 using namespace gl;
 using namespace std::chrono_literals;
@@ -48,18 +54,163 @@ typedef std::chrono::steady_clock SteadyClock;
 typedef std::chrono::time_point < SteadyClock > SteadyClockTimePoint;
 SteadyClockTimePoint timeSinceConnectDialogOpen = SteadyClockTimePoint();
 
+OpenCAGELevelViewer::AllInOne::Handoff::SceneRenderingStrategy OpenCAGELevelViewer::AllInOne::Handoff::currentSceneRenderingStrategy = OpenCAGELevelViewer::AllInOne::Handoff::SceneRenderingStrategy::INDIRECT_BATCHING;
+
+
+std::string OpenCAGELevelViewer::AllInOne::Handoff::gameRoot = "";
+
+
+static std::atomic_flag commandsEditorDependent {};
+
 #pragma managed(push, on)
-void forceCoreClr() {
+static void forceCoreClr() {
 
 }
 #pragma managed(pop)
 
-int handoff(char **argv, int argc) {
-	//initalize_contentManager(); // let CoreCLR sort itself out, if needed.
-	// I'm not sure if this is needed anymore, but we'll keep it anyway if there's any surprises.
+#pragma managed(push, off)
+static void setGameRootFolder(void *userData, const char *const *filelist, int filter) {
+	if (filelist[0] != nullptr)
+		OpenCAGELevelViewer::AllInOne::ContentManager::setGameRoot(std::string(filelist[0]));
+}
+#pragma managed(pop)
 
-	//openGlLoadingThreadIsDone.test_and_set();
-	
+#pragma managed(push, off)
+inline size_t combineHash(std::size_t a, std::size_t b) {
+	return a ^ (b + 0x9e3779b9 + (a << 6) + (a >> 2));
+}
+#pragma managed(pop)
+
+static std::hash < std::string > stringHashFunction {};
+
+#pragma region Commands Editor
+
+static bool commandsContentWindowOpen = true;
+
+typedef struct CommandsContent;
+
+struct CommandsContentType {
+	bool isFolder;
+	std::string name;
+
+	bool operator==(const CommandsContentType &other) const = default;
+
+	//bool operator==(const CommandsContentType &other) const {
+		//return isFolder == other.isFolder && name == other.name;
+	//}
+};
+
+template<>
+struct std::hash<CommandsContentType> {
+	std::size_t operator()(const CommandsContentType &commandsContentType) const noexcept {
+		std::size_t h1 = std::hash<bool> {}(commandsContentType.isFolder);
+		std::size_t h2 = std::hash<std::string> {}(commandsContentType.name);
+		return combineHash(h1, h2);
+	}
+};
+
+using CommandsContentChildren = std::unordered_map < CommandsContentType, CommandsContent >;
+
+struct CommandsContent {
+	std::string name {};
+	uint32_t shortGuid = 0xFFFFFFFF;
+	CommandsContentChildren children {};
+};
+
+#pragma managed(push, on)
+static bool fillInCommandsContentChildren(CommandsContentChildren &commandsContentChildren) {
+	commandsContentChildren = {};
+
+	std::lock_guard cmLock(OpenCAGELevelViewer::AllInOne::ContentManager::cmMutex);
+
+	// Regenerate commandsContent.
+
+	if (OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance.operator OpenCAGELevelViewer::AllInOne::ContentManager::LevelContent ^() == nullptr || OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Commands == nullptr) {
+		return false;
+	}
+
+	for each(System::String ^ compositeName in OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Commands->GetCompositeNames()) {
+		CommandsContentChildren *currentCommandsContentChildren = &commandsContentChildren;
+		array < System::String ^ > ^compositeNameComponents = compositeName->Split('\\');
+
+		for (size_t i = 0; i < compositeNameComponents->Length; i++) {
+			CommandsContentType propsedCommandsContentType = {i + 1 != compositeNameComponents->Length, ConvertCliStringToCXXString(compositeNameComponents[i])};
+
+			if (!currentCommandsContentChildren->contains(propsedCommandsContentType)) {
+				CommandsContent newContent {};
+
+				newContent.name = ConvertCliStringToCXXString(compositeNameComponents[i]);
+				if (i + 1 == compositeNameComponents->Length) {
+					if (OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Commands->GetComposite(compositeName) == nullptr) {
+						std::cout << "ERR! Composite " << MarshalCliString(compositeName) << " is null." << std::endl;
+						__debugbreak();
+					} else {
+						newContent.shortGuid = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Commands->GetComposite(compositeName)->shortGUID.AsUInt32;
+					}
+				}
+
+				currentCommandsContentChildren->operator [](propsedCommandsContentType) = newContent;
+			}
+
+			currentCommandsContentChildren = &(currentCommandsContentChildren->operator [](propsedCommandsContentType).children);
+			//if (i + 1 == compositeNameComponents->Length)
+		}
+	}
+
+	return true;
+}
+#pragma managed(pop)
+
+#pragma managed(push, off)
+static void renderCommandsContentChildren(const CommandsContentChildren &commandsContentChildren) {
+	for (const auto &pair : commandsContentChildren) {
+		const CommandsContentType &type = pair.first;
+		const CommandsContent &content = pair.second;
+		if (type.isFolder) {
+			if (ImGui::TreeNodeEx(content.name.c_str(), ImGuiTreeNodeFlags_OpenOnArrow)) {
+				renderCommandsContentChildren(content.children);
+				ImGui::TreePop();
+			}
+		} else {
+			ImGui::TreeNodeEx(content.name.c_str(), ImGuiTreeNodeFlags_Leaf | (content.shortGuid == OpenCAGELevelViewer::AllInOne::ContentManager::getComposite() ? ImGuiTreeNodeFlags_Selected : 0));
+			if (content.shortGuid != OpenCAGELevelViewer::AllInOne::ContentManager::getComposite() && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+				OpenCAGELevelViewer::AllInOne::ContentManager::setComposite(content.shortGuid);
+			}
+			ImGui::TreePop();
+		}
+	}
+}
+
+static void renderCommandsContentWindow() {
+	if (commandsEditorDependent.test())
+		return;
+
+	if (commandsContentWindowOpen) {
+		if (ImGui::Begin("Composites List", &commandsContentWindowOpen)) {
+			static CommandsContentChildren commandsContent {};
+
+			{
+				static size_t combinedHash = 0;
+				//static bool commandsContentNeedsUpdate = true;
+
+				if (combinedHash != combineHash(OpenCAGELevelViewer::AllInOne::ContentManager::getGameRootHash(), OpenCAGELevelViewer::AllInOne::ContentManager::getLevelHash()) ) {
+					if (fillInCommandsContentChildren(commandsContent))
+						combinedHash = combineHash(OpenCAGELevelViewer::AllInOne::ContentManager::getGameRootHash(), OpenCAGELevelViewer::AllInOne::ContentManager::getLevelHash());
+				}
+			}
+
+			renderCommandsContentChildren(commandsContent);
+		}
+		ImGui::End();
+	}
+}
+#pragma managed(pop)
+#pragma endregion
+
+#pragma managed(push, off)
+int handoff(char **argv, int argc) {
+	// force c++/cli to initalise here.
+	// if c++/cli isn't initalised, debugging becomes very strange.
 	forceCoreClr();
 
 	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_GAMEPAD) < 0) {
@@ -97,7 +248,7 @@ int handoff(char **argv, int argc) {
 
 	//__debugbreak();
 
-	if ((gotMajorVersion != 4 || gotMinorVersion != 3) && SDL_GL_ExtensionSupported("ARB_gpu_shader_int64")) {
+	if ((gotMajorVersion != 4 || gotMinorVersion != 3) &&  SDL_GL_ExtensionSupported("ARB_gpu_shader_int64")) {
 		fatalError("Your system does not support the needed OpenGL version and/or extensions.\nCheck that you have the latest graphics drivers for your card installed, and that your card is correctly configured.");
 	}
 
@@ -109,7 +260,7 @@ int handoff(char **argv, int argc) {
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
-	ImGuiIO &io = ImGui::GetIO(); ( void ) io;
+	ImGuiIO &io = ImGui::GetIO();
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableSetMousePos;
@@ -125,7 +276,7 @@ int handoff(char **argv, int argc) {
 	ImGui_ImplOpenGL3_Init();
 
 	OpenCAGELevelViewer::WebsocketThread::keepThreadActive.test_and_set();
-	OpenCAGELevelViewer::WebsocketThread::willConnect.test_and_set();
+	OpenCAGELevelViewer::WebsocketThread::willConnect.clear();
 
 	std::atomic_flag suspendFlag;
 	suspendFlag.test_and_set();
@@ -170,6 +321,7 @@ int handoff(char **argv, int argc) {
 
 		float yScroll = 0;
 
+		
 		SDL_Event event;
 
 		while (SDL_PollEvent(&event)) {
@@ -267,13 +419,23 @@ int handoff(char **argv, int argc) {
 
 			if (event.type == SDL_EVENT_QUIT)
 				userRequestedExit = true;
+				
 		}
 
-		OpenCAGELevelViewer::_3DView::updateCamera(isRightPressed - isLeftPressed, isUpPressed - isDownPressed, isForwardPressed - isBackwardPressed, 0, xMouse, yMouse, yScroll, isShiftPressed, isCtrlPressed, static_cast< float >(currentFrameTime - lastFrameTime) / std::chrono::microseconds::period::den);
+		//penCAGELevelViewer::_3DView::updateCamera(isRightPressed - isLeftPressed, isUpPressed - isDownPressed, isForwardPressed - isBackwardPressed, 0, xMouse, yMouse, yScroll, isShiftPressed, isCtrlPressed, static_cast< float >(currentFrameTime - lastFrameTime) / std::chrono::microseconds::period::den);
 
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplSDL3_NewFrame();
 		ImGui::NewFrame();
+
+		if (commandsEditorDependent.test()) {
+			if (!OpenCAGELevelViewer::WebsocketThread::willConnect.test())
+				OpenCAGELevelViewer::WebsocketThread::willConnect.test_and_set();
+		} else {
+			if (OpenCAGELevelViewer::WebsocketThread::willConnect.test())
+				OpenCAGELevelViewer::WebsocketThread::willConnect.clear();
+		}
+
 		//#if 0
 
 			//ImGui::ShowDemoWindow(&isDemoWindowOpen);
@@ -283,6 +445,10 @@ int handoff(char **argv, int argc) {
 		/*ImGui::DockSpace(dockspaceId, ImVec2(0.0f, 0.0f), 0);*/
 
 	#pragma region ImGui Start
+		static bool openAboutMenu = false;
+		static bool isSettingsMenuOpen = false;
+		static bool isDebugMenuOpen = true;
+
 		{
 			static ImGuiDockNodeFlags dockspace_flags = ImGuiDockNodeFlags_None;
 			ImGuiWindowFlags window_flags = /*ImGuiWindowFlags_MenuBar | */ImGuiWindowFlags_NoDocking;
@@ -306,10 +472,39 @@ int handoff(char **argv, int argc) {
 
 			ImGui::End();
 
-			static bool openAboutMenu = false;
-			static bool isSettingsMenuOpen = false;
-
 			if (ImGui::BeginMainMenuBar()) {
+				if (commandsEditorDependent.test()) {
+					ImGui::BeginDisabled();
+				}
+				if (ImGui::BeginMenu("File")) {
+					if (ImGui::MenuItem("Game Root"))
+						SDL_ShowOpenFolderDialog(setGameRootFolder, nullptr, sdlWindow, nullptr, false);
+
+					if (ImGui::BeginMenu("Level")) {
+						static std::vector < std::string > levels {};
+						static size_t gameRootHash = 0;
+
+						if (gameRootHash != OpenCAGELevelViewer::AllInOne::ContentManager::getGameRootHash()) {
+							levels = OpenCAGELevelViewer::AllInOne::ContentManager::getAllLevels();
+							gameRootHash = OpenCAGELevelViewer::AllInOne::ContentManager::getGameRootHash();
+						}
+
+						//static std::string currentLevel = OpenCAGELevelViewer::AllInOne::ContentManager::getLevel();
+
+						for (const std::string &level : levels) {
+							if (ImGui::MenuItem(level.data(), nullptr, stringHashFunction(level) == OpenCAGELevelViewer::AllInOne::ContentManager::getLevelHash())) {
+								OpenCAGELevelViewer::AllInOne::ContentManager::setLevel(level);
+							}
+						}
+
+						ImGui::EndMenu();
+					}
+					ImGui::EndMenu();
+				}
+				if (commandsEditorDependent.test()) {
+					ImGui::EndDisabled();
+				}
+
 				if (ImGui::BeginMenu("Help")) {
 					openAboutMenu = ImGui::MenuItem("About");
 					ImGui::MenuItem("Settings", NULL, &isSettingsMenuOpen);
@@ -317,60 +512,129 @@ int handoff(char **argv, int argc) {
 					ImGui::EndMenu();
 				}
 
-				ImGui::EndMainMenuBar();
-			}
+				if (ImGui::BeginMenu("View")) {
+					ImGui::BeginDisabled(commandsEditorDependent.test());
+					if (ImGui::BeginMenu("Commands Editor")) {
+						ImGui::MenuItem("Commands Content", nullptr, &commandsContentWindowOpen);
 
-			if (openAboutMenu)
-				ImGui::OpenPopup("About##OCLV", 0);
-
-			if (ImGui::BeginPopupModal("About##OCLV", &openAboutMenu, ImGuiWindowFlags_AlwaysAutoResize)) {
-				ImGui::Text("OpenCAGE C++ Level Viewer");
-				ImGui::Text("By ProjectHSI");
-				ImGui::NewLine();
-				ImGui::Text("Pre-Alpha");
-				ImGui::NewLine();
-				ImGui::Text("Made with CATHODELib by Matt Filer");
-				ImGui::NewLine();
-				ImGui::Text("Made with love for the OpenCAGE Community");
-
-				ImGui::EndPopup();
-			}
-
-			if (isSettingsMenuOpen) {
-				if (ImGui::Begin("Settings", &isSettingsMenuOpen)) {
-					int swapInterval;
-					//const char *swapIntervalString = "";
-
-					SDL_GL_GetSwapInterval(&swapInterval);
-
-					auto getSwapIntervalString = [](int swapInterval) -> const char * {
-						switch (swapInterval) {
-							case -1:
-								return "Adaptive VSync";
-							case 0:
-								return "No Vertical Sync";
-							case 1:
-								return "Vertical Sync";
-						}
-						};
-
-					if (ImGui::BeginCombo("VSync", getSwapIntervalString(swapInterval))) {
-						for (int8_t i = -1; i <= 1; i++) {
-							if (ImGui::Selectable(getSwapIntervalString(i), swapInterval == i))
-								SDL_GL_SetSwapInterval(i);
-
-							if (swapInterval == i)
-								ImGui::SetItemDefaultFocus();
-						}
-
-						ImGui::EndCombo();
+						ImGui::EndMenu();
 					}
+					ImGui::EndDisabled();
+
+					ImGui::EndMenu();
 				}
-				ImGui::End();
+
+				ImGui::MenuItem("Debug", nullptr, &isDebugMenuOpen);
+
+				//static bool ceiFalseBool = false;
+
+				if (ImGui::MenuItem("Commands Editor Integration", nullptr, commandsEditorDependent.test())) {
+					if (commandsEditorDependent.test())
+						commandsEditorDependent.clear();
+					else
+						commandsEditorDependent.test_and_set();
+				}
+
+				//assert(ceiFalseBool == commandsEditorDependent.test());
+
+				ImGui::EndMainMenuBar();
 			}
 		}
 
-		//static std::optional<OpenCAGELevelViewer::ContentManager::UnmanagedModelReference> unmanagedModelReference;
+		if (openAboutMenu)
+			ImGui::OpenPopup("About", 0);
+
+		if (ImGui::BeginPopupModal("About", &openAboutMenu, ImGuiWindowFlags_AlwaysAutoResize)) {
+			ImGui::Text("OpenCAGE C++ Level Viewer");
+			ImGui::Text("By ProjectHSI");
+			ImGui::NewLine();
+			ImGui::Text("Pre-Alpha");
+			ImGui::NewLine();
+			ImGui::Text("Made with CATHODELib by Matt Filer");
+			ImGui::NewLine();
+			ImGui::Text("Made with love for the OpenCAGE Community");
+
+			ImGui::EndPopup();
+		}
+
+		if (isSettingsMenuOpen) {
+			if (ImGui::Begin("Settings", &isSettingsMenuOpen)) {
+				int swapInterval;
+				//const char *swapIntervalString = "";
+
+				SDL_GL_GetSwapInterval(&swapInterval);
+
+				auto getSwapIntervalString = [](int swapInterval) -> const char * {
+					switch (swapInterval) {
+						case -1:
+							return "Adaptive VSync";
+						case 0:
+							return "No Vertical Sync";
+						case 1:
+							return "Vertical Sync";
+					}
+					};
+
+				if (ImGui::BeginCombo("VSync", getSwapIntervalString(swapInterval))) {
+					for (int8_t i = -1; i <= 1; i++) {
+						if (ImGui::Selectable(getSwapIntervalString(i), swapInterval == i))
+							SDL_GL_SetSwapInterval(i);
+
+						if (swapInterval == i)
+							ImGui::SetItemDefaultFocus();
+					}
+
+					ImGui::EndCombo();
+				}
+			}
+			ImGui::End();
+		}
+
+		if (isDebugMenuOpen) {
+			if (ImGui::Begin("Debug", &isDebugMenuOpen, ImGuiWindowFlags_::ImGuiWindowFlags_AlwaysAutoResize)) {
+				if (ImGui::BeginTabBar("DebugMenu")) {
+					if (ImGui::BeginTabItem("ContentManager")) {
+						ImGui::EndTabItem();
+					}
+
+					if (ImGui::BeginTabItem("OpenGL")) {
+						//ImGui::Checkbox("");
+						if (ImGui::BeginCombo("Scene Strategy", OpenCAGELevelViewer::AllInOne::Handoff::sceneRenderingStrategy[OpenCAGELevelViewer::AllInOne::Handoff::currentSceneRenderingStrategy].second.data())) {
+							for (uint8_t i = 0; i < OpenCAGELevelViewer::AllInOne::Handoff::sceneRenderingStrategy.size(); i++) {
+								if (ImGui::Selectable(OpenCAGELevelViewer::AllInOne::Handoff::sceneRenderingStrategy[i].second.data(), OpenCAGELevelViewer::AllInOne::Handoff::currentSceneRenderingStrategy == i))
+									OpenCAGELevelViewer::AllInOne::Handoff::currentSceneRenderingStrategy = static_cast < OpenCAGELevelViewer::AllInOne::Handoff::SceneRenderingStrategy >(i);
+
+								//switch (i) {
+								//	case 0:
+								//		ImGui::SetTooltip("Batches the entire (A:I) scene into a single draw call.\nThis is the fastest option, and should generally be kept onto this unless you're diagnosing a problem with batching.");
+								//		break;
+								//	case 1:
+								//		ImGui::SetTooltip("Batches a-like models together.\nThis is the \"OK\" option.");
+								//		break;
+								//	case 2:
+								//		ImGui::SetTooltip("Doesn't batch at all.\nNot recommended as it takes time to send data from the CPU to the GPU. The models don't need to be sent every time, but the data does.");
+								//		break;
+								//}
+
+								if (OpenCAGELevelViewer::AllInOne::Handoff::currentSceneRenderingStrategy == i)
+									ImGui::SetItemDefaultFocus();
+							}
+							
+							ImGui::EndCombo();
+						}
+						
+						ImGui::EndTabItem();
+					}
+
+					ImGui::EndTabBar();
+				}
+				//ImGui::Text("This is debug text.");
+			}
+			ImGui::End();
+		}
+
+		// Commands Content
+		renderCommandsContentWindow();
 
 		// Composite Tree
 		{
@@ -456,7 +720,7 @@ int handoff(char **argv, int argc) {
 
 		static bool wasReadyLastFrame = true;
 
-		if (!OpenCAGELevelViewer::WebsocketThread::ready.test()) {
+		if (commandsEditorDependent.test() && !OpenCAGELevelViewer::WebsocketThread::ready.test()) {
 			ImGui::OpenPopup("Connecting", ImGuiPopupFlags_::ImGuiPopupFlags_NoReopen);
 
 			if (ImGui::BeginPopupModal("Connecting", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
@@ -477,6 +741,11 @@ int handoff(char **argv, int argc) {
 						ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
 						ImGui::TextWrapped("Make sure that the Commands Editor is running and that \"Options\" -> \"Level Viewer\" -> \"Connect To Level Viewer\" is selected.");
 						ImGui::PopStyleColor();
+					}
+
+					if (ImGui::Button("Disable Commands Editor Integration")) {
+						commandsEditorDependent.clear();
+						//OpenCAGELevelViewer::WebsocketThread::willConnect.clear();
 					}
 				}
 
@@ -717,3 +986,4 @@ int handoff(char **argv, int argc) {
 
 	return 0;
 }
+#pragma managed(pop)

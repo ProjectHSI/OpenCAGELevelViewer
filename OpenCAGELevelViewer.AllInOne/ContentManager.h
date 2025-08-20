@@ -97,6 +97,12 @@ namespace OpenCAGELevelViewer {
 				CMStatusEnum currentStatus;
 			};
 
+			ref struct LevelContent {
+				CATHODE::Commands ^Commands;
+				CATHODE::Models ^Models;
+				CATHODE::RenderableElements ^Renderables;
+			};
+
 			extern std::atomic < CMStatus > cmStatus;
 			extern std::recursive_mutex cmMutex;
 
@@ -104,6 +110,7 @@ namespace OpenCAGELevelViewer {
 			extern std::map < uint64_t, CMModel > models;
 			extern std::map < uint64_t, std::vector < ModelReferenceGL > > modelReferences;
 			extern msclr::gcroot < CompositeDataValue ^ > entityDataRoot;
+			extern msclr::gcroot < LevelContent ^ > levelContentInstance;
 
 			/*struct Vec3Transform {
 				glm::vec3 position {};
@@ -112,12 +119,18 @@ namespace OpenCAGELevelViewer {
 
 			void setGameRoot(const std::string &gameRoot);
 			std::string getGameRoot();
+			// helper function to prevent cloning
+			size_t getGameRootHash();
 
 			void setLevel(const std::string &level);
 			std::string getLevel();
+			// helper function to prevent cloning
+			size_t getLevelHash();
 
 			void setComposite(uint32_t compositeGuid);
 			uint32_t getComposite();
+
+			std::vector < std::string > getAllLevels();
 
 			void threadMain(std::atomic_flag &suspendFlag);
 		}

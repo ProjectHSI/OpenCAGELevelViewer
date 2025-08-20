@@ -440,9 +440,9 @@ constexpr bool passedBase64Tests = base64Tests();
 
 static_assert(passedBase64Tests == true, "Base64 Test Vectors did not match expected values");
 
-msclr::gcroot< msclr::interop::marshal_context ^ > msclr_context = gcnew msclr::interop::marshal_context();
-#define MarshalCliString(cliString) msclr_context->marshal_as<const char *>(cliString)
-#define ConvertCliStringToCXXString(cliString) std::string(MarshalCliString(cliString))
+//msclr::gcroot< msclr::interop::marshal_context ^ > msclr_context = gcnew msclr::interop::marshal_context();
+//#define MarshalCliString(cliString) msclr_context->marshal_as<const char *>(cliString)
+//#define ConvertCliStringToCXXString(cliString) std::string(MarshalCliString(cliString))
 
 static std::vector<std::string> split(std::string s, const std::string &delimiter) {
 	std::vector<std::string> tokens;

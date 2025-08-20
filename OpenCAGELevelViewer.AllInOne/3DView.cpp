@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "3DView.h"
+#include "handoff.h"
 #include <imgui.h>
 
 #include "ContentManager.h"
@@ -816,9 +817,10 @@ static void allocateMRVEBO() {
 
 		{
 			workingVbo.insert(workingVbo.end(), model.second.vertices.begin(), model.second.vertices.end());
-			for (const auto index : model.second.elements) {
+			workingEbo.insert(workingEbo.end(), model.second.elements.begin(), model.second.elements.end());
+			/*for (const auto index : model.second.elements) {
 				workingEbo.push_back(((!workingEboAllocations.empty()) ? (workingEboAllocations[workingEboAllocations.size() - 1].offset) : 0) + index);
-			}
+			}*/
 		}
 	}
 
@@ -884,7 +886,7 @@ static void fillInMRIndirectBuffer() {
 		deic.count = MREboAllocations[i].size;
 		deic.instanceCount = MRIboAllocations[i].size;
 		deic.firstIndex = MREboAllocations[i].offset;
-		deic.baseVertex = 0; // We already account for this.
+		deic.baseVertex = MRVboAllocations[i].offset;
 		deic.baseInstance = MRIboAllocations[i].offset;
 
 		workingIndirectBuffer.push_back(deic);
@@ -1158,7 +1160,17 @@ void OpenCAGELevelViewer::_3DView::Render(ImVec2 windowSize/*, std::optional<std
 		glUniformMatrix4fv(glGetUniformLocation(baseProgram, "view"), 1, GL_FALSE, &view[0][0]);
 
 		glBindVertexArray(MRVertexArray);
-		glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, nullptr, MRIndirectBufferAllocations.size(), 0);
+
+		switch (OpenCAGELevelViewer::AllInOne::Handoff::currentSceneRenderingStrategy) {
+			case OpenCAGELevelViewer::AllInOne::Handoff::SceneRenderingStrategy::INDIRECT_BATCHING:
+				glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, nullptr, MRIndirectBufferAllocations.size(), 0);
+				break;
+
+			case OpenCAGELevelViewer::AllInOne::Handoff::SceneRenderingStrategy::PER_MODEL_BATCHING:
+				glDrawArrays(GL_TRIANGLES, 0, MRVboAllocations.size());
+				break;
+		}
+		
 		glBindVertexArray(0);
 	}
 
