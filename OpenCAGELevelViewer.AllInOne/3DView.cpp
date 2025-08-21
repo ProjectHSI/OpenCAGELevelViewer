@@ -210,13 +210,9 @@ public:
 	GLuint getShader() const { return _shader; }
 };
 
-static std::filesystem::path getApplicationPath() {
-	return std::filesystem::path(std::string(SDL_GetBasePath()));
-}
-
 static GLuint createShaderProgram(std::string vertexShaderPath, std::string fragmentShaderPath) {
-	std::filesystem::path vertexShaderStdPath = getApplicationPath() / vertexShaderPath;
-	std::filesystem::path fragmentShaderStdPath = getApplicationPath() / fragmentShaderPath;
+	std::filesystem::path vertexShaderStdPath = getApplicationPathAsStdPath() / vertexShaderPath;
+	std::filesystem::path fragmentShaderStdPath = getApplicationPathAsStdPath() / fragmentShaderPath;
 
 	GLuint vertexShader;
 	{
@@ -491,7 +487,7 @@ void OpenCAGELevelViewer::_3DView::Initalise(void) {
 #pragma endregion
 
 #pragma region Setup Axis Arrow
-	const aiScene *scene = import.ReadFile((getApplicationPath() / "AxisArrow.obj").string(), aiProcess_Triangulate);
+	const aiScene *scene = import.ReadFile((getApplicationPathAsStdPath() / "AxisArrow.obj").string(), aiProcess_Triangulate);
 
 #pragma region Fragment Shaders
 	/*std::ifstream vertexShaderStream("VertexShader.vert");

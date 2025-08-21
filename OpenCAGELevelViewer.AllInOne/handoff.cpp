@@ -5,6 +5,7 @@
 
 #include "ContentManager.h"
 #include "WebsocketThread.h"
+#include "Configuration.h"
 #include <chrono>
 #include <functional>
 #include <imgui.h>
@@ -217,6 +218,8 @@ int handoff(char **argv, int argc) {
 		fatalSdlError("SDL3 was unable to initalize one or more of its subsystems.");
 	};
 
+	OpenCAGELevelViewer::AllInOne::Configuration::load();
+
 	sdlWindow = SDL_CreateWindow("OpenCAGE Level Viewer", 1600, 1200, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
 
 	if (!sdlWindow) {
@@ -253,7 +256,7 @@ int handoff(char **argv, int argc) {
 	}
 
 	SDL_GL_MakeCurrent(sdlWindow, gl_context);
-	SDL_GL_SetSwapInterval(1);
+	SDL_GL_SetSwapInterval(OpenCAGELevelViewer::AllInOne::Configuration::configuration.vsync);
 
 	glbinding::initialize(reinterpret_cast< glbinding::ProcAddress(*)(const char *) >(SDL_GL_GetProcAddress), true);
 	//glbinding::initialize(SDL_GL_GetProcAddress);
@@ -422,7 +425,7 @@ int handoff(char **argv, int argc) {
 				
 		}
 
-		//penCAGELevelViewer::_3DView::updateCamera(isRightPressed - isLeftPressed, isUpPressed - isDownPressed, isForwardPressed - isBackwardPressed, 0, xMouse, yMouse, yScroll, isShiftPressed, isCtrlPressed, static_cast< float >(currentFrameTime - lastFrameTime) / std::chrono::microseconds::period::den);
+		OpenCAGELevelViewer::_3DView::updateCamera(isRightPressed - isLeftPressed, isUpPressed - isDownPressed, isForwardPressed - isBackwardPressed, 0, xMouse, yMouse, yScroll, isShiftPressed, isCtrlPressed, static_cast< float >(currentFrameTime - lastFrameTime) / std::chrono::microseconds::period::den);
 
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplSDL3_NewFrame();
@@ -559,10 +562,10 @@ int handoff(char **argv, int argc) {
 
 		if (isSettingsMenuOpen) {
 			if (ImGui::Begin("Settings", &isSettingsMenuOpen)) {
-				int swapInterval;
+				//int swapInterval;
 				//const char *swapIntervalString = "";
 
-				SDL_GL_GetSwapInterval(&swapInterval);
+				SDL_GL_GetSwapInterval(&OpenCAGELevelViewer::AllInOne::Configuration::configuration.vsync);
 
 				auto getSwapIntervalString = [](int swapInterval) -> const char * {
 					switch (swapInterval) {
@@ -575,12 +578,12 @@ int handoff(char **argv, int argc) {
 					}
 					};
 
-				if (ImGui::BeginCombo("VSync", getSwapIntervalString(swapInterval))) {
+				if (ImGui::BeginCombo("VSync", getSwapIntervalString(OpenCAGELevelViewer::AllInOne::Configuration::configuration.vsync))) {
 					for (int8_t i = -1; i <= 1; i++) {
-						if (ImGui::Selectable(getSwapIntervalString(i), swapInterval == i))
+						if (ImGui::Selectable(getSwapIntervalString(i), OpenCAGELevelViewer::AllInOne::Configuration::configuration.vsync == i))
 							SDL_GL_SetSwapInterval(i);
 
-						if (swapInterval == i)
+						if (OpenCAGELevelViewer::AllInOne::Configuration::configuration.vsync == i)
 							ImGui::SetItemDefaultFocus();
 					}
 
@@ -963,6 +966,8 @@ int handoff(char **argv, int argc) {
 	//SDL_DestroyRenderer(sdlRenderer);
 	SDL_GL_DestroyContext(gl_context);
 	SDL_DestroyWindow(sdlWindow);
+
+	OpenCAGELevelViewer::AllInOne::Configuration::save();
 
 	SDL_Quit();
 

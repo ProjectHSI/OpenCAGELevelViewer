@@ -24,6 +24,12 @@
 #undef min
 #undef max
 
+#include <vector>
+#include <map>
+#include <unordered_map>
+#include <string>
+#include <filesystem>
+
 #include <msclr/gcroot.h>
 #include <msclr/marshal.h>
 
@@ -39,6 +45,9 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+
+const std::string &getApplicationPath(void);
+const std::filesystem::path &getApplicationPathAsStdPath(void);
 
 extern msclr::gcroot< msclr::interop::marshal_context ^ > msclr_context;
 

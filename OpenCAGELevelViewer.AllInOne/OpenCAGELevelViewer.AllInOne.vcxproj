@@ -245,6 +245,10 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <EnablePREfast>true</EnablePREfast>
+      <AdditionalIncludeDirectories>$(ProtobufCompiledDirectory)</AdditionalIncludeDirectories>
+      <EnableModules>false</EnableModules>
+      <ModuleOutputFile />
+      <ModuleDependenciesFile />
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -266,6 +270,10 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <EnablePREfast>true</EnablePREfast>
+      <AdditionalIncludeDirectories>$(ProtobufCompiledDirectory)</AdditionalIncludeDirectories>
+      <EnableModules>false</EnableModules>
+      <ModuleOutputFile />
+      <ModuleDependenciesFile />
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -285,6 +293,11 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <EnablePREfast>true</EnablePREfast>
+      <AdditionalIncludeDirectories>$(ProtobufCompiledDirectory)</AdditionalIncludeDirectories>
+      <ModuleOutputFile>
+      </ModuleOutputFile>
+      <EnableModules>false</EnableModules>
+      <ModuleDependenciesFile />
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -304,6 +317,10 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <EnablePREfast>true</EnablePREfast>
+      <AdditionalIncludeDirectories>$(ProtobufCompiledDirectory)</AdditionalIncludeDirectories>
+      <EnableModules>false</EnableModules>
+      <ModuleOutputFile />
+      <ModuleDependenciesFile />
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -323,6 +340,10 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <EnablePREfast>true</EnablePREfast>
+      <AdditionalIncludeDirectories>$(ProtobufCompiledDirectory)</AdditionalIncludeDirectories>
+      <EnableModules>false</EnableModules>
+      <ModuleOutputFile />
+      <ModuleDependenciesFile />
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -344,6 +365,10 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <EnablePREfast>true</EnablePREfast>
+      <AdditionalIncludeDirectories>$(ProtobufCompiledDirectory)</AdditionalIncludeDirectories>
+      <EnableModules>false</EnableModules>
+      <ModuleOutputFile />
+      <ModuleDependenciesFile />
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -365,6 +390,10 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <EnablePREfast>true</EnablePREfast>
+      <AdditionalIncludeDirectories>$(ProtobufCompiledDirectory)</AdditionalIncludeDirectories>
+      <EnableModules>false</EnableModules>
+      <ModuleOutputFile />
+      <ModuleDependenciesFile />
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -386,6 +415,10 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <EnablePREfast>true</EnablePREfast>
+      <AdditionalIncludeDirectories>$(ProtobufCompiledDirectory)</AdditionalIncludeDirectories>
+      <EnableModules>false</EnableModules>
+      <ModuleOutputFile />
+      <ModuleDependenciesFile />
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -396,6 +429,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="3DView.h" />
+    <ClInclude Include="Configuration.h" />
     <ClInclude Include="ContentManager.h" />
     <ClInclude Include="ContentManager.old.h" />
     <ClInclude Include="framework.h" />
@@ -407,6 +441,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="3DView.cpp" />
+    <ClCompile Include="Configuration.cpp" />
     <ClCompile Include="ContentManager.cpp" />
     <ClCompile Include="ContentManager.old.cpp" />
     <ClCompile Include="dllmain.cpp" />
@@ -435,6 +470,7 @@
     <None Include="AxisFragmentShaderZ.frag">
       <DeploymentContent>true</DeploymentContent>
     </None>
+    <None Include="Configuration.proto" />
     <None Include="FragmentShader.frag">
       <DeploymentContent>true</DeploymentContent>
     </None>
@@ -467,4 +503,50 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <!-- Protobuf -->
+  <!--
+  <ItemGroup>
+    <AvailableItemName Include="Protobuf" />
+  </ItemGroup>
+  <ItemGroup>
+    <Protobuf Include="Configuration.proto" />
+  </ItemGroup>
+  <PropertyGroup>
+    <ProtobufCompiledDirectory>$(IntermediateOutputPath)protobufOutput/</ProtobufCompiledDirectory>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProtobufCPPCompiledFileExtensions Include=".pb.h" />
+    <ProtobufCPPCompiledFileExtensions Include=".pb.cc" />
+  </ItemGroup>
+	<ItemDefinitionGroup>
+		<ClCompile>
+			<AdditionalIncludeDirectories>$(ProtobufCompiledDirectory);$(ProtobufCompiledDirectory)/vcpkg_installed/x64-windows/x64-windows;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+		</ClCompile>
+	</ItemDefinitionGroup>
+  -->
+  <!--<Target Name="ProtobufDetermine" BeforeTargets="ProtobufCompile;CleanUpProtobufs">
+	  <ProtobufMSBuildDetermine Protobufs="@(Protobuf)" ProjectRoot="$(MSBuildProjectDirectory)" ProtobufCompiledDirectory="$(ProtobufCompiledDirectory)">
+			<Output TaskParameter="CompiledProtobufs" ItemName="CompiledProtobufs" />
+		</ProtobufMSBuildDetermine>
+	</Target>-->
+  <!--
+  <Target Name="ProtobufCompile" BeforeTargets="ClCompile" Inputs="@(Protobuf)" Outputs="$(ProtobufCompiledDirectory)%(Protobuf.Filename)%(ProtobufCPPCompiledFileExtensions.Identity)">
+    <MakeDir Directories="$(ProtobufCompiledDirectory)" />
+    <Message Text="@(Protobuf->'%(Identity)')" />
+    <Message Text="$(ProtobufCompiledDirectory)%(Protobuf.Filename)%(ProtobufCPPCompiledFileExtensions.Identity)" />
+		<Exec Command="protoc -I$(MSBuildProjectDirectory) -cpp_out $(ProtobufCompiledDirectory) %(Protobuf.FullPath)" />
+    <ItemGroup>-->
+  <!--<ClCompile Include="$(ProtobufCompiledDirectory)%(Protobuf.Filename).pb.cc">
+				<PrecompiledHeader>NotUsing</PrecompiledHeader>
+			</ClCompile>-->
+  <!--
+    </ItemGroup>
+		-->
+  <!--<RemoveDir Directories="$(ProtobufCompiledDirectory)/vcpkg_installed" />-->
+  <!--
+  </Target>
+  <Target Name="CleanUpProtobufs" BeforeTargets="Clean">
+    <Delete Files="$(ProtobufCompiledDirectory)" />
+  </Target>
+	-->
 </Project>
