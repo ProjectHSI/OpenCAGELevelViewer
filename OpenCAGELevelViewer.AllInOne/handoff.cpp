@@ -479,6 +479,7 @@ int handoff(char **argv, int argc) {
 				if (commandsEditorDependent.test()) {
 					ImGui::BeginDisabled();
 				}
+
 				if (ImGui::BeginMenu("File")) {
 					if (ImGui::MenuItem("Game Root"))
 						SDL_ShowOpenFolderDialog(setGameRootFolder, nullptr, sdlWindow, nullptr, false);
@@ -515,6 +516,15 @@ int handoff(char **argv, int argc) {
 					ImGui::EndMenu();
 				}
 
+				ImGui::Separator();
+
+				if (ImGui::MenuItem("Commands Editor Integration", nullptr, commandsEditorDependent.test())) {
+					if (commandsEditorDependent.test())
+						commandsEditorDependent.clear();
+					else
+						commandsEditorDependent.test_and_set();
+				}
+
 				if (ImGui::BeginMenu("View")) {
 					ImGui::BeginDisabled(commandsEditorDependent.test());
 					if (ImGui::BeginMenu("Commands Editor")) {
@@ -527,16 +537,11 @@ int handoff(char **argv, int argc) {
 					ImGui::EndMenu();
 				}
 
+				ImGui::Separator();
+
 				ImGui::MenuItem("Debug", nullptr, &isDebugMenuOpen);
 
 				//static bool ceiFalseBool = false;
-
-				if (ImGui::MenuItem("Commands Editor Integration", nullptr, commandsEditorDependent.test())) {
-					if (commandsEditorDependent.test())
-						commandsEditorDependent.clear();
-					else
-						commandsEditorDependent.test_and_set();
-				}
 
 				//assert(ceiFalseBool == commandsEditorDependent.test());
 
