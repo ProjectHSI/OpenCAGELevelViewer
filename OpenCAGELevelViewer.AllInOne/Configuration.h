@@ -20,7 +20,7 @@ namespace OpenCAGELevelViewer {
 
 			struct Profile {
 				bool exists; // data may be garbage otherwise
-				char profileName[profileNameLength];
+				//char profileName[profileNameLength];
 				char gamePath[gamePathLength];
 			};
 

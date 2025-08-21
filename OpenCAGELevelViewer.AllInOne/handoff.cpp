@@ -3,9 +3,9 @@
 
 #include "handoff.h"
 
+#include "Configuration.h"
 #include "ContentManager.h"
 #include "WebsocketThread.h"
-#include "Configuration.h"
 #include <chrono>
 #include <functional>
 #include <imgui.h>
@@ -19,7 +19,9 @@
 #include <variant>
 
 #include "3DView.h"
+#include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <map>
 #include <unordered_map>
 #include <vector>
@@ -70,9 +72,13 @@ static void forceCoreClr() {
 #pragma managed(pop)
 
 #pragma managed(push, off)
+static bool modifiedProfile = false;
+
 static void setGameRootFolder(void *userData, const char *const *filelist, int filter) {
-	if (filelist[0] != nullptr)
+	if (filelist[0] != nullptr) {
 		OpenCAGELevelViewer::AllInOne::ContentManager::setGameRoot(std::string(filelist[0]));
+		modifiedProfile = true;
+	}
 }
 #pragma managed(pop)
 
@@ -452,6 +458,8 @@ int handoff(char **argv, int argc) {
 		static bool isSettingsMenuOpen = false;
 		static bool isDebugMenuOpen = true;
 
+		static int profileToModify = -1;
+
 		{
 			static ImGuiDockNodeFlags dockspace_flags = ImGuiDockNodeFlags_None;
 			ImGuiWindowFlags window_flags = /*ImGuiWindowFlags_MenuBar | */ImGuiWindowFlags_NoDocking;
@@ -481,6 +489,23 @@ int handoff(char **argv, int argc) {
 				}
 
 				if (ImGui::BeginMenu("File")) {
+					if (ImGui::BeginMenu("Profile")) {
+						for (size_t i = 0; i < OpenCAGELevelViewer::AllInOne::Configuration::profileLength; i++) {
+							ImGui::BeginDisabled(!modifiedProfile && !OpenCAGELevelViewer::AllInOne::Configuration::configuration.profile[i].exists);
+
+							if (ImGui::MenuItem((std::string("Profile ") + std::to_string(i + 1)).data(), nullptr, nullptr)) {
+								if (modifiedProfile) {
+									profileToModify = i;
+								} else
+									OpenCAGELevelViewer::AllInOne::ContentManager::setGameRoot(OpenCAGELevelViewer::AllInOne::Configuration::configuration.profile[i].gamePath);
+							}
+
+							ImGui::EndDisabled();
+						}
+
+						ImGui::EndMenu();
+					}
+
 					if (ImGui::MenuItem("Game Root"))
 						SDL_ShowOpenFolderDialog(setGameRootFolder, nullptr, sdlWindow, nullptr, false);
 
@@ -561,6 +586,44 @@ int handoff(char **argv, int argc) {
 			ImGui::Text("Made with CATHODELib by Matt Filer");
 			ImGui::NewLine();
 			ImGui::Text("Made with love for the OpenCAGE Community");
+
+			ImGui::EndPopup();
+		}
+
+		if (profileToModify != -1)
+			ImGui::OpenPopup("Save Profile?", ImGuiPopupFlags_NoReopen);
+
+		if (ImGui::BeginPopupModal("Save Profile?")) {
+			ImGui::Text("You have modified the current profile.\nDo you want to save it?\nIt will be saved to slot %i.", profileToModify + 1);
+
+			if (ImGui::Button("Save")) {
+				if (OpenCAGELevelViewer::AllInOne::ContentManager::getGameRoot().size() > OpenCAGELevelViewer::AllInOne::Configuration::gamePathLength)
+					fatalError("If you're seeing this message, please file a bug report, your game root path is larger than the allowed value.");
+
+				std::fill(OpenCAGELevelViewer::AllInOne::Configuration::configuration.profile[profileToModify].gamePath, OpenCAGELevelViewer::AllInOne::Configuration::configuration.profile[profileToModify].gamePath + OpenCAGELevelViewer::AllInOne::Configuration::gamePathLength, '\0');
+				std::memcpy(OpenCAGELevelViewer::AllInOne::Configuration::configuration.profile[profileToModify].gamePath, OpenCAGELevelViewer::AllInOne::ContentManager::getGameRoot().data(), OpenCAGELevelViewer::AllInOne::ContentManager::getGameRoot().size() + 1);
+				OpenCAGELevelViewer::AllInOne::Configuration::configuration.profile[profileToModify].exists = true;
+
+				modifiedProfile = false;
+				profileToModify = -1;
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::SameLine();
+			ImGui::BeginDisabled(!OpenCAGELevelViewer::AllInOne::Configuration::configuration.profile[profileToModify].exists);
+			if (ImGui::Button("Load")) {
+				OpenCAGELevelViewer::AllInOne::ContentManager::setGameRoot(OpenCAGELevelViewer::AllInOne::Configuration::configuration.profile[profileToModify - 1].gamePath);
+
+				modifiedProfile = false;
+				profileToModify = -1;
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::EndDisabled();
+			ImGui::SameLine();
+			if (ImGui::Button("Cancel")) {
+				//modifiedProfile = false;
+				profileToModify = -1;
+				ImGui::CloseCurrentPopup();
+			}
 
 			ImGui::EndPopup();
 		}

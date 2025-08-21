@@ -5,7 +5,7 @@
 #include <fstream>
 
 constexpr const char *saveLocation = "configuration.bin";
-constexpr OpenCAGELevelViewer::AllInOne::Configuration::Version currentVersion {0, 0, 1};
+constexpr OpenCAGELevelViewer::AllInOne::Configuration::Version currentVersion {0, 0, 2};
 
 OpenCAGELevelViewer::AllInOne::Configuration::Configuration OpenCAGELevelViewer::AllInOne::Configuration::configuration {};
 
@@ -14,7 +14,7 @@ static void defaultValues() {
 	OpenCAGELevelViewer::AllInOne::Configuration::configuration.vsync = 1; // Default to vsync enabled.
 	for (auto &profile : OpenCAGELevelViewer::AllInOne::Configuration::configuration.profile) {
 		profile.exists = false;
-		std::fill(std::begin(profile.profileName), std::end(profile.profileName), '\0');
+		//std::fill(std::begin(profile.profileName), std::end(profile.profileName), '\0');
 		std::fill(std::begin(profile.gamePath), std::end(profile.gamePath), '\0');
 	}
 }
