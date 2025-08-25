@@ -482,7 +482,7 @@ static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > 
 static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMMaterial > getCMMaterial(int entryIndex) {
 	if (!OpenCAGELevelViewer::AllInOne::ContentManager::materials.contains(entryIndex)) {
 		CATHODE::Materials::Material ^material = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->ModelsMTL->GetAtWriteIndex(entryIndex);
-		CATHODE::Shaders::Shader ^shader = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Shaders->Entries[material->ShaderIndex];
+		CATHODE::Shaders::Shader ^shader = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Shaders. [material->ShaderIndex];
 		//shader.
 
 		OpenCAGELevelViewer::AllInOne::ContentManager::CMMaterial cmMaterial;

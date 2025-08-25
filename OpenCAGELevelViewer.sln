@@ -13,6 +13,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{E7A3C856-6834-D657-F2F0-05592DF2DDE9}"
 	ProjectSection(SolutionItems) = preProject
 		.github\workflows\build.yml = .github\workflows\build.yml
+		.github\workflows\codeql.yml = .github\workflows\codeql.yml
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenCAGELevelViewer.AllInOne.CSManaged", "OpenCAGELevelViewer.AllInOne.CSManaged\OpenCAGELevelViewer.AllInOne.CSManaged.csproj", "{7D9142BC-4F9C-C208-C36D-1732255A88E9}"

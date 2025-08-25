@@ -22,6 +22,11 @@ env:
 permissions:
   contents: read
 
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     strategy:
@@ -89,3 +94,34 @@ jobs:
       with:
         name: ${{ github.sha }}-${{matrix.architecture}}-${{matrix.configuration}}
         path: ${{ github.workspace }}/${{matrix.architecture}}/${{matrix.configuration}}
+
+  codeql:
+    needs: [build]
+
+    strategy:
+      matrix:
+        configuration: [Release, Debug]
+        architecture: [x86, x64, ARM64]
+
+        include:
+          - language: actions
+            build-mode: none
+          - language: c-cpp
+            build-mode: autobuild
+          - language: csharp
+            build-mode: autobuild
+
+      fail-fast: false
+
+    steps:
+    - name: Cache vcpkg asset cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{env.OCLV_VCPKG_CACHE_DIR}}/assets
+        key: vcpkg-assets-${{ github.run_id }}
+
+    - name: Cache vcpkg binary cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{env.OCLV_VCPKG_CACHE_DIR}}/bin
+        key: vcpkg-${{matrix.architecture}}-${{matrix.configuration}}-${{ github.run_id }}

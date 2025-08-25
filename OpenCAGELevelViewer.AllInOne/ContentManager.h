@@ -109,7 +109,7 @@ namespace OpenCAGELevelViewer {
 				CATHODE::Models ^ModelsPAK;
 				CATHODE::Materials ^ModelsMTL;
 				//CATHODE::Textures ^Textures;
-				CATHODE::Shaders ^Shaders;
+				CATHODE::LEGACY::ShadersPAK ^Shaders;
 				CATHODE::RenderableElements ^Renderables;
 			};
 
