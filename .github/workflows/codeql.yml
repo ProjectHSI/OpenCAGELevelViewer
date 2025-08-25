@@ -97,7 +97,7 @@ jobs:
     - if: matrix.build-mode == 'manual'
       name: Build
       working-directory: ${{ github.workspace }}
-      run: msbuild /m /p:Configuration=${{matrix.configuration}} /p:Platform=${{matrix.architecture}} /p:OutDir=${{ github.workspace }}/${{matrix.architecture}}/${{matrix.configuration}}/ /maxCpuCount /ds:True ${{env.SOLUTION_FILE_PATH}}
+      run: msbuild /m /p:Configuration=Release /p:Platform=x64 /p:OutDir=${{ github.workspace }}/x64/Release/ /maxCpuCount /ds:True ${{env.SOLUTION_FILE_PATH}}
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
