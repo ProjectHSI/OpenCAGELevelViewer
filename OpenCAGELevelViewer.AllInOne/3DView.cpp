@@ -16,6 +16,7 @@
 
 #include <exception>
 #include <map>
+#include <algorithm>
 #include <variant>
 
 #include <filesystem>
@@ -128,6 +129,9 @@ float yaw = -90.0f;
 float pitch = 0.0f;
 float OpenCAGELevelViewer::_3DView::fov = 45.0f;
 float OpenCAGELevelViewer::_3DView::mouseSensitivity = 1.0f;
+bool OpenCAGELevelViewer::_3DView::axisArrows = true;
+OpenCAGELevelViewer::_3DView::VertexColourMode OpenCAGELevelViewer::_3DView::vertexColourMode = OpenCAGELevelViewer::_3DView::VertexColourMode::MAT_BASED;
+bool OpenCAGELevelViewer::_3DView::ignoreColW = false;
 
 void OpenCAGELevelViewer::_3DView::updateCamera(signed char x, signed char y, signed char z, signed char roll, int32_t mouseX, int32_t mouseY, float scrollY, bool isShiftPressed, bool isCtrlPressed, float deltaTime) {
 	// TODO: Use isCtrlPressed to create some sort of accelerating camera, kind of like Optifine/Zoomify/Whatever (Minecraft)'s Cinematic Camera.
@@ -211,8 +215,8 @@ public:
 };
 
 static GLuint createShaderProgram(std::string vertexShaderPath, std::string fragmentShaderPath) {
-	std::filesystem::path vertexShaderStdPath = getApplicationPathAsStdPath() / vertexShaderPath;
-	std::filesystem::path fragmentShaderStdPath = getApplicationPathAsStdPath() / fragmentShaderPath;
+	std::filesystem::path vertexShaderStdPath = OpenCAGELevelViewer::AllInOne::getApplicationPathAsStdPath() / vertexShaderPath;
+	std::filesystem::path fragmentShaderStdPath = OpenCAGELevelViewer::AllInOne::getApplicationPathAsStdPath() / fragmentShaderPath;
 
 	GLuint vertexShader;
 	{
@@ -487,7 +491,7 @@ void OpenCAGELevelViewer::_3DView::Initalise(void) {
 #pragma endregion
 
 #pragma region Setup Axis Arrow
-	const aiScene *scene = import.ReadFile((getApplicationPathAsStdPath() / "AxisArrow.obj").string(), aiProcess_Triangulate);
+	const aiScene *scene = import.ReadFile((OpenCAGELevelViewer::AllInOne::getApplicationPathAsStdPath() / "AxisArrow.obj").string(), aiProcess_Triangulate);
 
 #pragma region Fragment Shaders
 	/*std::ifstream vertexShaderStream("VertexShader.vert");
@@ -876,7 +880,7 @@ static void fillInMRIndirectBuffer() {
 	std::vector < DrawElementsIndirectCommand > workingIndirectBuffer {};
 	std::vector < MRBufferAllocation > workingIndirectBufferAllocations {};
 
-	for (size_t i = 0; i < MRIboAllocations.size(); i++) {
+	for (size_t i = 0; i < /*std::min < size_t > (1, */MRIboAllocations.size()/*)*/; i++) {
 		DrawElementsIndirectCommand deic {};
 
 		deic.count = MREboAllocations[i].size;
@@ -906,9 +910,6 @@ static void fillInMRIndirectBuffer() {
 	MRIndirectBufferAllocations = workingIndirectBufferAllocations;
 }
 
-GLuint64 test = 5;
-GLenum test2 = GL_UNSIGNED_INT64_ARB;
-
 static void makeMRVAO() {
 	glBindVertexArray(MRVertexArray);
 
@@ -931,20 +932,19 @@ static void makeMRVAO() {
 	glVertexAttribFormat(2, 1, GL_UNSIGNED_INT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, instanceId));
 	glVertexAttribFormat(3, 3, GL_FLOAT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, worldPosition));
 	glVertexAttribFormat(4, 3, GL_FLOAT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, worldRotation));
-	glVertexAttribFormat(5, 4, GL_FLOAT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, colOffset));
+	glVertexAttribFormat(5, 4, GL_FLOAT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, modelCol));
+	glVertexAttribFormat(6, 4, GL_FLOAT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, colOffset));
 	glVertexAttribBinding(2, 1);
 	glVertexAttribBinding(3, 1);
 	glVertexAttribBinding(4, 1);
 	glVertexAttribBinding(5, 1);
+	glVertexAttribBinding(6, 1);
 	glVertexBindingDivisor(1, 1);
-	/*glVertexAttribDivisor(2, 1);
-	glVertexAttribDivisor(3, 1);
-	glVertexAttribDivisor(4, 1);
-	glVertexAttribDivisor(5, 1);*/
 	glEnableVertexAttribArray(2);
 	glEnableVertexAttribArray(3);
 	glEnableVertexAttribArray(4);
 	glEnableVertexAttribArray(5);
+	glEnableVertexAttribArray(6);
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, MRElementBuffer);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, MRIndirectBuffer);
@@ -1045,8 +1045,8 @@ void OpenCAGELevelViewer::_3DView::Render(ImVec2 windowSize/*, std::optional<std
 		//glDrawElements(GL_TRIANGLES, unmanagedModelReference->model->indices.size(), GL_UNSIGNED_INT, 0);
 	#pragma endregion
 
-#if 0
 #pragma region Scene Drawing
+#if 0
 	auto &localParsedCs2Models = parsedCs2Models;
 
 	std::function<void(const OpenCAGELevelViewer::ContentManager::UnmanagedModelReference &, const glm::mat4 &)> renderModelReference;
@@ -1098,13 +1098,46 @@ void OpenCAGELevelViewer::_3DView::Render(ImVec2 windowSize/*, std::optional<std
 			renderModelReference(std::get< OpenCAGELevelViewer::ContentManager::UnmanagedModelReference >(_3dViewSelectedUnmanagedObject.value()), glm::mat4(1.0f));
 		}
 	}
-#pragma endregion
+
 #endif
+
+	if (MRVertexArray != 0) {
+		glUseProgram(baseProgram);
+		glUniformMatrix4fv(glGetUniformLocation(baseProgram, "projection"), 1, GL_FALSE, &projection[0][0]);
+		glUniformMatrix4fv(glGetUniformLocation(baseProgram, "view"), 1, GL_FALSE, &view[0][0]);
+
+		glUniform1i(glGetUniformLocation(baseProgram, "vertexColourMode"), vertexColourMode);
+		glUniform1i(glGetUniformLocation(baseProgram, "ignoreColW"), ignoreColW);
+		//glUniform1iv(glGetUniformLocation(baseProgram, "ignoreColW"), 1, GL_FALSE, &view[0][0]);
+
+		glBindVertexArray(MRVertexArray);
+
+		switch (OpenCAGELevelViewer::AllInOne::Handoff::currentSceneRenderingStrategy) {
+			case OpenCAGELevelViewer::AllInOne::Handoff::SceneRenderingStrategy::INDIRECT_BATCHING:
+				glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, nullptr, MRIndirectBufferAllocations.size(), 0);
+				break;
+
+			case OpenCAGELevelViewer::AllInOne::Handoff::SceneRenderingStrategy::PER_MODEL_BATCHING:
+				//glDrawArrays(GL_TRIANGLES, 0, MRVboAllocations.size());
+				if (!MREboAllocations.empty())
+					glDrawElements(GL_TRIANGLES, MREboAllocations[0].size, GL_UNSIGNED_INT, nullptr);
+				break;
+		}
+
+		glBindVertexArray(0);
+	}
+
+#pragma endregion
 
 #pragma region Drawing Axis
 	//glDisable(GL_DEPTH_TEST);
 
-	{
+	glClear(GL_DEPTH_BUFFER_BIT);
+
+	//glEnable(GL_BLEND);
+	//glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	if (axisArrows) {
 		glBindVertexArray(_3dViewAxisArrowVao);
 		glm::mat4 modelMatrix(1.0f);
 		modelMatrix = glm::scale(modelMatrix, glm::vec3(0.3f));
@@ -1135,7 +1168,7 @@ void OpenCAGELevelViewer::_3DView::Render(ImVec2 windowSize/*, std::optional<std
 		glDrawElements(GL_TRIANGLES, _3dViewAxisArrowIndicesCount, GL_UNSIGNED_INT, 0);
 	}
 
-	//glEnable(GL_DEPTH_TEST);
+	//glDisable(GL_BLEND);
 
 	//glBindVertexArray(0);
 
@@ -1149,26 +1182,6 @@ void OpenCAGELevelViewer::_3DView::Render(ImVec2 windowSize/*, std::optional<std
 	//glBindFramebuffer(GL_READ_FRAMEBUFFER, _3dViewRenderFbo);
 	//glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _3dViewOutputFbo);
 	//glBlitFramebuffer(0, 0, static_cast< GLsizei >(windowSize.x), static_cast< GLsizei >(windowSize.y), 0, 0, static_cast< GLsizei >(windowSize.x), static_cast< GLsizei >(windowSize.y), GL_COLOR_BUFFER_BIT, GL_NEAREST);
-
-	if (MRVertexArray != 0) {
-		glUseProgram(baseProgram);
-		glUniformMatrix4fv(glGetUniformLocation(baseProgram, "projection"), 1, GL_FALSE, &projection[0][0]);
-		glUniformMatrix4fv(glGetUniformLocation(baseProgram, "view"), 1, GL_FALSE, &view[0][0]);
-
-		glBindVertexArray(MRVertexArray);
-
-		switch (OpenCAGELevelViewer::AllInOne::Handoff::currentSceneRenderingStrategy) {
-			case OpenCAGELevelViewer::AllInOne::Handoff::SceneRenderingStrategy::INDIRECT_BATCHING:
-				glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, nullptr, MRIndirectBufferAllocations.size(), 0);
-				break;
-
-			case OpenCAGELevelViewer::AllInOne::Handoff::SceneRenderingStrategy::PER_MODEL_BATCHING:
-				glDrawArrays(GL_TRIANGLES, 0, MRVboAllocations.size());
-				break;
-		}
-		
-		glBindVertexArray(0);
-	}
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 #pragma endregion

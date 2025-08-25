@@ -7,9 +7,6 @@
 #ifndef PCH_H
 #define PCH_H
 
-// here to make sure everything is managed by default, because sometimes it isn't being managed by default.
-#pragma managed(on)
-
 #define WIN32_LEAN_AND_MEAN // Exclude rarely-used stuff from Windows headers
 // Windows Header Files
 #pragma warning( push )
@@ -46,8 +43,27 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-const std::string &getApplicationPath(void);
-const std::filesystem::path &getApplicationPathAsStdPath(void);
+
+namespace OpenCAGELevelViewer::AllInOne {
+#pragma managed(push, off)
+	const std::string &getApplicationPath(void);
+	const std::filesystem::path &getApplicationPathAsStdPath(void);
+#pragma managed(pop)
+
+#pragma managed(push, off)
+	inline size_t combineHash(std::size_t a, std::size_t b) {
+		return a ^ (b + 0x9e3779b9 + (a << 6) + (a >> 2));
+	}
+#pragma managed(pop)
+
+	template < typename T >
+	constexpr std::vector < T > convertCliArray(array < T > ^tArray) {
+		std::vector < T > tVector = std::vector < T >(tArray->Length);
+		System::Runtime::InteropServices::Marshal::Copy(tArray, 0, System::IntPtr(tVector.data()), tArray->Length);
+
+		return tVector;
+	}
+}
 
 extern msclr::gcroot< msclr::interop::marshal_context ^ > msclr_context;
 

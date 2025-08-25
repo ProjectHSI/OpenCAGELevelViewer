@@ -153,14 +153,12 @@ std::recursive_mutex OpenCAGELevelViewer::AllInOne::ContentManager::cmMutex {};
 
 msclr::gcroot < System::Collections::Generic::List < System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^ > ^ > OpenCAGELevelViewer::AllInOne::ContentManager::compositesById {};
 std::map < uint64_t, OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > OpenCAGELevelViewer::AllInOne::ContentManager::models {};
+std::map < uint64_t, OpenCAGELevelViewer::AllInOne::ContentManager::CMMaterial > OpenCAGELevelViewer::AllInOne::ContentManager::materials {};
 std::map < uint64_t, std::vector < OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL > > OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences {};
 msclr::gcroot < OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^ > OpenCAGELevelViewer::AllInOne::ContentManager::entityDataRoot { };
 
-#pragma region Model Loading and Handling
-// ContentManager model
-
 template<typename T, bool CorrectForEndianness = (sizeof(T) > 1), bool IsDataLittleEndian = true, size_t ByteSwapDivisor = sizeof(T)>
-static T popTFromArray(size_t &rollingIndex, const std::vector < unsigned char > &array) {
+constexpr static T getTFromArray(size_t index, const std::vector < unsigned char > &array) {
 	static_assert(std::is_trivially_copyable<T>::value);
 	static_assert((!CorrectForEndianness) || (sizeof(T) > 1));
 
@@ -169,11 +167,8 @@ static T popTFromArray(size_t &rollingIndex, const std::vector < unsigned char >
 	// If it is, then bit_cast can work on it just fine, else UB.
 	static_assert(sizeof(std::array < unsigned char, sizeof(T) >) == sizeof(T));
 
-	//std::array < uint16_t, 2 > test {};
-	//sizeof(test);
-
 	for (size_t i = 0; i < sizeof(T); i++) {
-		tArrayInstance[i] = array[rollingIndex + i];
+		tArrayInstance[i] = array[index + i];
 	}
 
 	if constexpr (CorrectForEndianness && ((IsDataLittleEndian && std::endian::native == std::endian::big) || (!IsDataLittleEndian && std::endian::native == std::endian::little))) {
@@ -194,16 +189,23 @@ static T popTFromArray(size_t &rollingIndex, const std::vector < unsigned char >
 		}
 	}
 
-	rollingIndex += sizeof(T);
-
 	return std::bit_cast< T >(tArrayInstance);
 }
 
+template<typename T, bool CorrectForEndianness = (sizeof(T) > 1), bool IsDataLittleEndian = true, size_t ByteSwapDivisor = sizeof(T)>
+constexpr static T popTFromArray(size_t &rollingIndex, const std::vector < unsigned char > &array) {
+	rollingIndex += sizeof(T);
+
+	return getTFromArray < T, CorrectForEndianness, IsDataLittleEndian, ByteSwapDivisor >(rollingIndex - sizeof(T), array);
+}
+
+#pragma region Model Loading and Handling
+// ContentManager model
 static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > getCMMModel(int entryIndex) {
 	if (!OpenCAGELevelViewer::AllInOne::ContentManager::models.contains(entryIndex)) {
-		CATHODE::Models::CS2::Component::LOD::Submesh ^submesh = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Models->GetAtWriteIndex(entryIndex);
-		CATHODE::Models::CS2::Component::LOD ^lod = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Models->FindModelLODForSubmesh(submesh);
-		CATHODE::Models::CS2 ^mesh = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Models->FindModelForSubmesh(submesh);
+		CATHODE::Models::CS2::Component::LOD::Submesh ^submesh = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->ModelsPAK->GetAtWriteIndex(entryIndex);
+		CATHODE::Models::CS2::Component::LOD ^lod = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->ModelsPAK->FindModelLODForSubmesh(submesh);
+		CATHODE::Models::CS2 ^mesh = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->ModelsPAK->FindModelForSubmesh(submesh);
 
 		if (submesh == nullptr)
 			return std::nullopt;
@@ -219,8 +221,7 @@ static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > 
 		// The following code only cares about the vertices and elements.
 		// Not worrying about the extra stuff until I can get level loading and rendering
 		{
-			std::vector < unsigned char > submeshContent = std::vector < unsigned char >(submesh->content->Length);
-			System::Runtime::InteropServices::Marshal::Copy(submesh->content, 0, IntPtr(submeshContent.data()), submesh->content->Length);
+			auto submeshContent = OpenCAGELevelViewer::AllInOne::convertCliArray(submesh->content);
 
 			size_t rollingIndex = 0;
 			
@@ -342,8 +343,11 @@ static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > 
 						}
 					}
 				}
+
+				constexpr size_t rollingIndexModulo = 16;
+				if (rollingIndex % rollingIndexModulo != 0)
+					rollingIndex += rollingIndexModulo - (rollingIndex % rollingIndexModulo);
 			}
-			
 		#if 0
 			for (size_t i = 0; i < submesh->VertexFormat->Elements->Count; ++i) {
 				if (i == submesh->VertexFormat->Elements->Count - 1) {
@@ -474,6 +478,93 @@ static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > 
 //}
 #pragma endregion
 
+#pragma region Material Loading and Handling
+static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMMaterial > getCMMaterial(int entryIndex) {
+	if (!OpenCAGELevelViewer::AllInOne::ContentManager::materials.contains(entryIndex)) {
+		CATHODE::Materials::Material ^material = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->ModelsMTL->GetAtWriteIndex(entryIndex);
+		CATHODE::Shaders::Shader ^shader = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Shaders->Entries[material->ShaderIndex];
+		//shader.
+
+		OpenCAGELevelViewer::AllInOne::ContentManager::CMMaterial cmMaterial;
+
+		int materialDiffuseIndex = -1;
+
+		/*
+		CATHODE.Legacy.ShadersPAK provides a facility similiar to this, and is in fact used in the Unity Level Viewer.
+		However, it's marked as legacy.
+
+		As of CATHODELib 0.10.0.0, the facility CATHODE.Shaders does not yet provide the ability to do this easily.
+		It is still possible to do this however with CATHODE.Shaders - although of course we won't be able to use the metadata functions.
+
+		The numbers used are ripped straight from CATHODE.Legacy.ShadersPAK.GetMaterialPropertyIndexes (private method).
+		The permanent link to the responsible code is https://github.com/OpenCAGE/CathodeLib/blob/de2174e83739b9843f4837371bc72cbf06208596/CathodeLib/Scripts/LEGACY_DAN/ShadersPAK.cs#L56.
+
+		TODO: Replace this with the proper code once CATHODE.Shaders supports this.
+		*/
+		/*
+		The diffuse CST Link indices:
+		<null> means the 'Diffuse0' property was not set in the corresponding switch block.
+
+		CA_ENVIRONMENT          | 7
+		CA_CHARACTER            | 16
+		CA_SKIN                 | 5
+		CA_HAIR                 | 2
+		CA_EYE                  | <null>
+		CA_LIGHTMAP_ENVIRONMENT | 12
+
+		All other material types are not handled in the switch block, and thus are implictly '<null>'.
+		*/
+		switch (shader->Category) {
+			case CATHODE::Shaders::ShaderCategory::CA_ENVIRONMENT:
+				materialDiffuseIndex = 7;
+				break;
+			case CATHODE::Shaders::ShaderCategory::CA_CHARACTER:
+				materialDiffuseIndex = 16;
+				break;
+			case CATHODE::Shaders::ShaderCategory::CA_SKIN:
+				materialDiffuseIndex = 5;
+				break;
+			case CATHODE::Shaders::ShaderCategory::CA_HAIR:
+				materialDiffuseIndex = 2;
+				break;
+			case CATHODE::Shaders::ShaderCategory::CA_EYE:
+				// CA_EYE is handled, but no diffuse...
+				break;
+			case CATHODE::Shaders::ShaderCategory::CA_LIGHTMAP_ENVIRONMENT:
+				materialDiffuseIndex = 12;
+				break;
+			default:
+				// All other material types are not handled
+				break;
+		}
+
+		if (materialDiffuseIndex == -1)
+			cmMaterial.renderable = false;
+
+		bool setDiffuse = false;
+
+		for (size_t i = 0; i < shader->CSTLinks->Length; i++) {
+			auto cstDataArray = OpenCAGELevelViewer::AllInOne::convertCliArray < unsigned char > (OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->ModelsMTL->CSTData[i]);
+			//std::vector < unsigned char > cstDataArray = {};
+
+			if (entryIndex < cstDataArray.size() && shader->CSTLinks[i][materialDiffuseIndex] != 255) {
+				assert(!setDiffuse);
+
+				cmMaterial.materialCol = getTFromArray < glm::fvec4 >((material->ConstantBuffers[i]->Offset * 4) + (shader->CSTLinks[i][materialDiffuseIndex] * 4), cstDataArray);
+				setDiffuse = true;
+			}
+		}
+
+		assert(setDiffuse);
+
+		OpenCAGELevelViewer::AllInOne::ContentManager::materials[entryIndex] = cmMaterial;
+		return cmMaterial;
+	} else {
+		return OpenCAGELevelViewer::AllInOne::ContentManager::materials[entryIndex];
+	}
+}
+#pragma endregion
+
 static OpenCAGELevelViewer::AllInOne::ContentManager::EntityDataValue ^getEntityFromEntityPath(System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^entityPath) {
 	OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^current = OpenCAGELevelViewer::AllInOne::ContentManager::entityDataRoot.operator OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^ ();
 	array < CATHODE::Scripting::ShortGuid > ^entityPathAsArray = entityPath->ToArray();
@@ -590,6 +681,13 @@ static void CascadeEntity(OpenCAGELevelViewer::AllInOne::ContentManager::Composi
 											{
 												OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL modelReferenceGl;
 												modelReferenceGl.instanceId = modelReferenceDataValue->modelReferenceId;
+												{
+													std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMMaterial > cmMaterial;
+													if (cmMaterial.has_value())
+														modelReferenceGl.modelCol = getCMMaterial(renderableElement->MaterialIndex)->materialCol;
+													else
+														modelReferenceGl.modelCol = glm::fvec4(1.0f);
+												}
 												modelReferenceGl.colOffset = glm::fvec4(1.0f);
 
 												if (!OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences.contains(cmModel->modelId))
@@ -655,6 +753,7 @@ static void CascadeMain(OpenCAGELevelViewer::AllInOne::ContentManager::Composite
 static void resetGlobalVariables() {
 	OpenCAGELevelViewer::AllInOne::ContentManager::compositesById = gcnew System::Collections::Generic::List < System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^ >(0);
 	OpenCAGELevelViewer::AllInOne::ContentManager::models = {};
+	OpenCAGELevelViewer::AllInOne::ContentManager::materials = {};
 	OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences = {};
 
 	{
@@ -778,8 +877,12 @@ void OpenCAGELevelViewer::AllInOne::ContentManager::threadMain(std::atomic_flag 
 
 				std::string levelPath = currentGameRoot + "/DATA/ENV/PRODUCTION/" + currentLevel + "/";
 
+				OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->combinedHash = combineHash(getGameRootHash(), getLevelHash());
 				OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Commands = gcnew CATHODE::Commands(gcnew String((levelPath + "WORLD/COMMANDS.PAK").c_str()));
-				OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Models = gcnew CATHODE::Models(gcnew String((levelPath + "RENDERABLE/LEVEL_MODELS.PAK").c_str()));
+				OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->ModelsPAK = gcnew CATHODE::Models(gcnew String((levelPath + "RENDERABLE/LEVEL_MODELS.PAK").c_str()));
+				OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->ModelsMTL = gcnew CATHODE::Materials(gcnew String((levelPath + "RENDERABLE/LEVEL_MODELS.MTL").c_str()));
+				OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Shaders = gcnew CATHODE::Shaders(gcnew String((levelPath + "RENDERABLE/LEVEL_SHADERS_DX11.PAK").c_str()));
+				//OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Textures = gcnew CATHODE::Textures(gcnew String((levelPath + "RENDERABLE/LEVEL_TEXTURES.PAK").c_str()));
 				OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Renderables = gcnew CATHODE::RenderableElements(gcnew String((levelPath + "WORLD/REDS.BIN").c_str()));
 			}
 		}

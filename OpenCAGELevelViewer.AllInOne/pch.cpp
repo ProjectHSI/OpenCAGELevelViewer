@@ -16,13 +16,13 @@ static void initaliseApplicationPath() {
 	applicationPathPath = std::filesystem::path(applicationPath);
 }
 
-const std::string &getApplicationPath() {
+const std::string &OpenCAGELevelViewer::AllInOne::getApplicationPath() {
 	if (!initalisedApplicationPath)
 		initaliseApplicationPath();
 	return applicationPath;
 }
 
-const std::filesystem::path &getApplicationPathAsStdPath() {
+const std::filesystem::path &OpenCAGELevelViewer::AllInOne::getApplicationPathAsStdPath() {
 	if (!initalisedApplicationPath)
 		initaliseApplicationPath();
 	return applicationPathPath;

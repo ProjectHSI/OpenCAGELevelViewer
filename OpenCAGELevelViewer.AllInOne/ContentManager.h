@@ -46,11 +46,17 @@ namespace OpenCAGELevelViewer {
 				std::string lodName {};
 			};
 
+			struct CMMaterial {
+				bool renderable = true; // if the type we want isn't renderable (no diffuse colour), then we can't render it.
+				glm::fvec4 materialCol {};
+			};
+
 		#pragma pack(1)
 			struct ModelReferenceGL {
 				uint32_t instanceId = 0;
 				glm::fvec3 worldPosition {};
 				glm::fvec3 worldRotation {};
+				glm::fvec4 modelCol {};
 				glm::fvec4 colOffset {};
 			};
 		#pragma pack()
@@ -98,8 +104,12 @@ namespace OpenCAGELevelViewer {
 			};
 
 			ref struct LevelContent {
+				size_t combinedHash;
 				CATHODE::Commands ^Commands;
-				CATHODE::Models ^Models;
+				CATHODE::Models ^ModelsPAK;
+				CATHODE::Materials ^ModelsMTL;
+				//CATHODE::Textures ^Textures;
+				CATHODE::Shaders ^Shaders;
 				CATHODE::RenderableElements ^Renderables;
 			};
 
@@ -108,6 +118,7 @@ namespace OpenCAGELevelViewer {
 
 			extern msclr::gcroot < System::Collections::Generic::List < System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^ > ^ > compositesById;
 			extern std::map < uint64_t, CMModel > models;
+			extern std::map < uint64_t, CMMaterial > materials;
 			extern std::map < uint64_t, std::vector < ModelReferenceGL > > modelReferences;
 			extern msclr::gcroot < CompositeDataValue ^ > entityDataRoot;
 			extern msclr::gcroot < LevelContent ^ > levelContentInstance;

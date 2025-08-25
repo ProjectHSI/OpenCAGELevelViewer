@@ -1,8 +1,11 @@
 #pragma once
-#include "imgui.h"
+
+#include <imgui.h>
 //#include "ContentManager.h"
 #include <mutex>
 #include <optional>
+#include <map>
+#include <array>
 
 namespace OpenCAGELevelViewer {
 	namespace _3DView {
@@ -10,6 +13,19 @@ namespace OpenCAGELevelViewer {
 
 		extern float fov;
 		extern float mouseSensitivity;
+		extern bool  axisArrows;
+		extern bool  ignoreColW;
+
+		
+		enum VertexColourMode {
+			MAT_BASED   = 0,
+			MODEL_BASED = 1
+		};
+		constexpr std::array < std::pair < VertexColourMode, const char * >, 2 > vertexColourModeNames = {
+			std::pair < VertexColourMode, const char * > { VertexColourMode::MAT_BASED,   "Material Based" },
+			std::pair < VertexColourMode, const char * > { VertexColourMode::MODEL_BASED, "Model Based" }
+		};
+		extern VertexColourMode vertexColourMode;
 
 		//extern std::recursive_mutex _3dViewMutex;
 

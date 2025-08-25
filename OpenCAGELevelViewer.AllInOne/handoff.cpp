@@ -82,12 +82,6 @@ static void setGameRootFolder(void *userData, const char *const *filelist, int f
 }
 #pragma managed(pop)
 
-#pragma managed(push, off)
-inline size_t combineHash(std::size_t a, std::size_t b) {
-	return a ^ (b + 0x9e3779b9 + (a << 6) + (a >> 2));
-}
-#pragma managed(pop)
-
 static std::hash < std::string > stringHashFunction {};
 
 #pragma region Commands Editor
@@ -101,6 +95,16 @@ struct CommandsContentType {
 	std::string name;
 
 	bool operator==(const CommandsContentType &other) const = default;
+	bool operator<(const CommandsContentType &other) const {
+		return (name == other.name) ?
+			isFolder == other.isFolder ? false : isFolder :
+			name < other.name;
+	}
+	bool operator>(const CommandsContentType &other) const {
+		return (name == other.name) ?
+			isFolder == other.isFolder ? false : !isFolder :
+			name > other.name;
+	}
 
 	//bool operator==(const CommandsContentType &other) const {
 		//return isFolder == other.isFolder && name == other.name;
@@ -112,11 +116,11 @@ struct std::hash<CommandsContentType> {
 	std::size_t operator()(const CommandsContentType &commandsContentType) const noexcept {
 		std::size_t h1 = std::hash<bool> {}(commandsContentType.isFolder);
 		std::size_t h2 = std::hash<std::string> {}(commandsContentType.name);
-		return combineHash(h1, h2);
+		return OpenCAGELevelViewer::AllInOne::combineHash(h1, h2);
 	}
 };
 
-using CommandsContentChildren = std::unordered_map < CommandsContentType, CommandsContent >;
+using CommandsContentChildren = std::map < CommandsContentType, CommandsContent >;
 
 struct CommandsContent {
 	std::string name {};
@@ -126,19 +130,34 @@ struct CommandsContent {
 
 #pragma managed(push, on)
 static bool fillInCommandsContentChildren(CommandsContentChildren &commandsContentChildren) {
-	commandsContentChildren = {};
+	commandsContentChildren.clear();
 
 	std::lock_guard cmLock(OpenCAGELevelViewer::AllInOne::ContentManager::cmMutex);
 
 	// Regenerate commandsContent.
 
-	if (OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance.operator OpenCAGELevelViewer::AllInOne::ContentManager::LevelContent ^() == nullptr || OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Commands == nullptr) {
+	if (OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance.operator OpenCAGELevelViewer::AllInOne::ContentManager::LevelContent ^() == nullptr)
 		return false;
-	}
 
-	for each(System::String ^ compositeName in OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Commands->GetCompositeNames()) {
+	if (OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->combinedHash != OpenCAGELevelViewer::AllInOne::combineHash(OpenCAGELevelViewer::AllInOne::ContentManager::getGameRootHash(), OpenCAGELevelViewer::AllInOne::ContentManager::getLevelHash()))
+		return false;
+
+	CATHODE::Commands ^localCommandsHandle = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Commands;
+
+	if (localCommandsHandle == nullptr)
+		return false;
+
+	for each(System::String ^ compositeName in localCommandsHandle->GetCompositeNames()) {
 		CommandsContentChildren *currentCommandsContentChildren = &commandsContentChildren;
-		array < System::String ^ > ^compositeNameComponents = compositeName->Split('\\');
+
+		System::String ^displayCompositeName = compositeName;
+
+		// get rid of P:\\ composites and replace them only with the composite name
+		if (displayCompositeName->StartsWith("P:\\") || displayCompositeName->StartsWith("E:\\")) {
+			displayCompositeName = displayCompositeName->Split('\\')[(displayCompositeName->Split('\\').Length) - 1];
+		}
+
+		array < System::String ^ > ^compositeNameComponents = displayCompositeName->Split('\\');
 
 		for (size_t i = 0; i < compositeNameComponents->Length; i++) {
 			CommandsContentType propsedCommandsContentType = {i + 1 != compositeNameComponents->Length, ConvertCliStringToCXXString(compositeNameComponents[i])};
@@ -148,11 +167,11 @@ static bool fillInCommandsContentChildren(CommandsContentChildren &commandsConte
 
 				newContent.name = ConvertCliStringToCXXString(compositeNameComponents[i]);
 				if (i + 1 == compositeNameComponents->Length) {
-					if (OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Commands->GetComposite(compositeName) == nullptr) {
+					if (localCommandsHandle->GetComposite(compositeName) == nullptr) {
 						std::cout << "ERR! Composite " << MarshalCliString(compositeName) << " is null." << std::endl;
 						__debugbreak();
 					} else {
-						newContent.shortGuid = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Commands->GetComposite(compositeName)->shortGUID.AsUInt32;
+						newContent.shortGuid = localCommandsHandle->GetComposite(compositeName)->shortGUID.AsUInt32;
 					}
 				}
 
@@ -200,9 +219,9 @@ static void renderCommandsContentWindow() {
 				static size_t combinedHash = 0;
 				//static bool commandsContentNeedsUpdate = true;
 
-				if (combinedHash != combineHash(OpenCAGELevelViewer::AllInOne::ContentManager::getGameRootHash(), OpenCAGELevelViewer::AllInOne::ContentManager::getLevelHash()) ) {
+				if (combinedHash != OpenCAGELevelViewer::AllInOne::combineHash(OpenCAGELevelViewer::AllInOne::ContentManager::getGameRootHash(), OpenCAGELevelViewer::AllInOne::ContentManager::getLevelHash()) ) {
 					if (fillInCommandsContentChildren(commandsContent))
-						combinedHash = combineHash(OpenCAGELevelViewer::AllInOne::ContentManager::getGameRootHash(), OpenCAGELevelViewer::AllInOne::ContentManager::getLevelHash());
+						combinedHash = OpenCAGELevelViewer::AllInOne::combineHash(OpenCAGELevelViewer::AllInOne::ContentManager::getGameRootHash(), OpenCAGELevelViewer::AllInOne::ContentManager::getLevelHash());
 				}
 			}
 
@@ -543,14 +562,9 @@ int handoff(char **argv, int argc) {
 
 				ImGui::Separator();
 
-				if (ImGui::MenuItem("Commands Editor Integration", nullptr, commandsEditorDependent.test())) {
-					if (commandsEditorDependent.test())
-						commandsEditorDependent.clear();
-					else
-						commandsEditorDependent.test_and_set();
-				}
-
 				if (ImGui::BeginMenu("View")) {
+					ImGui::MenuItem("Axis Arrows", nullptr, &OpenCAGELevelViewer::_3DView::axisArrows);
+
 					ImGui::BeginDisabled(commandsEditorDependent.test());
 					if (ImGui::BeginMenu("Commands Editor")) {
 						ImGui::MenuItem("Commands Content", nullptr, &commandsContentWindowOpen);
@@ -560,6 +574,13 @@ int handoff(char **argv, int argc) {
 					ImGui::EndDisabled();
 
 					ImGui::EndMenu();
+				}
+
+				if (ImGui::MenuItem("Commands Editor Integration", nullptr, commandsEditorDependent.test())) {
+					if (commandsEditorDependent.test())
+						commandsEditorDependent.clear();
+					else
+						commandsEditorDependent.test_and_set();
 				}
 
 				ImGui::Separator();
@@ -669,6 +690,29 @@ int handoff(char **argv, int argc) {
 					}
 
 					if (ImGui::BeginTabItem("OpenGL")) {
+						static bool openglStatsDone = false;
+						static int openglVersionMajor = 0;
+						static int openglVersionMinor = 0;
+						static int openglMaxVertexAttributes = 0;
+						static int openglMaxTextureSize = 0;
+						static int openglMaxTextureArrayLayers = 0;
+
+						{
+							if (!openglStatsDone) {
+								openglVersionMajor = gotMajorVersion;
+								openglVersionMinor = gotMinorVersion;
+								glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &openglMaxVertexAttributes);
+								glGetIntegerv(GL_MAX_TEXTURE_SIZE, &openglMaxTextureSize);
+								glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &openglMaxTextureArrayLayers);
+								openglStatsDone = true;
+							}
+						}
+
+						ImGui::Text("OpenGL Version: %i.%i", openglVersionMajor, openglVersionMinor);
+						ImGui::Text("Max Vertex Attributes: %i", openglMaxVertexAttributes);
+						ImGui::Text("Max Texture Size: %i(^2)", openglMaxTextureSize);
+						ImGui::Text("Max Texture Array Layers: %i", openglMaxTextureArrayLayers);
+
 						//ImGui::Checkbox("");
 						if (ImGui::BeginCombo("Scene Strategy", OpenCAGELevelViewer::AllInOne::Handoff::sceneRenderingStrategy[OpenCAGELevelViewer::AllInOne::Handoff::currentSceneRenderingStrategy].second.data())) {
 							for (uint8_t i = 0; i < OpenCAGELevelViewer::AllInOne::Handoff::sceneRenderingStrategy.size(); i++) {
@@ -894,6 +938,17 @@ int handoff(char **argv, int argc) {
 				ImGui::EndDisabled();
 
 				ImGui::Checkbox("Use Model LODs", &_3dviewConfiguration.useLods);
+				if (ImGui::BeginCombo("Vertex Colour Mode", OpenCAGELevelViewer::_3DView::vertexColourModeNames[OpenCAGELevelViewer::_3DView::vertexColourMode].second)) {
+					for (const auto &vertexColourMode : OpenCAGELevelViewer::_3DView::vertexColourModeNames) {
+						if (ImGui::Selectable(vertexColourMode.second, OpenCAGELevelViewer::_3DView::vertexColourMode == vertexColourMode.first)) {
+							OpenCAGELevelViewer::_3DView::vertexColourMode = vertexColourMode.first;
+						}
+						if (OpenCAGELevelViewer::_3DView::vertexColourMode == vertexColourMode.first)
+							ImGui::SetItemDefaultFocus();
+					}
+					ImGui::EndCombo();
+				}
+				ImGui::Checkbox("Ignore Col W (Alpha)", &OpenCAGELevelViewer::_3DView::ignoreColW);
 				//ImGui::SliderInt();
 				//ImGui::
 
