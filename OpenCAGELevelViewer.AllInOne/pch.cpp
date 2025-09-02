@@ -28,4 +28,13 @@ const std::filesystem::path &OpenCAGELevelViewer::AllInOne::getApplicationPathAs
 	return applicationPathPath;
 }
 
+//void OpenCAGELevelViewer::AllInOne::gcCleanup() {
+//	{
+//		System::GC::Collect();
+//		System::GC::WaitForPendingFinalizers();
+//		System::GC::Collect();
+//		System::GC::WaitForPendingFinalizers();
+//	}
+//}
+
 // When you are using pre-compiled headers, this source file is necessary for compilation to succeed.

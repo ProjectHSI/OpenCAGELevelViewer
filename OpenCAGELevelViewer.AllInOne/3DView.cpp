@@ -14,11 +14,12 @@
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 
+#include <algorithm>
 #include <exception>
 #include <map>
-#include <algorithm>
 #include <variant>
 
+#include <cmath>
 #include <filesystem>
 
 using namespace gl;
@@ -65,8 +66,15 @@ unsigned int _3dViewVertexShader;
 unsigned int _3dViewFragmentShader;
 unsigned int _3dViewShaderProgram;
 
+GLuint _3dViewAxisPlaneVao;
+GLuint _3dViewAxisPlaneVbo;
+GLuint _3dViewAxisPlaneEbo;
+
 glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
+//glm::vec3 properCameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
 glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
+glm::vec3 cameraRight = glm::vec3(0.0f, 1.0f, 0.0f);
 glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
 
 //glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
@@ -135,12 +143,37 @@ bool OpenCAGELevelViewer::_3DView::ignoreColW = false;
 
 void OpenCAGELevelViewer::_3DView::updateCamera(signed char x, signed char y, signed char z, signed char roll, int32_t mouseX, int32_t mouseY, float scrollY, bool isShiftPressed, bool isCtrlPressed, float deltaTime) {
 	// TODO: Use isCtrlPressed to create some sort of accelerating camera, kind of like Optifine/Zoomify/Whatever (Minecraft)'s Cinematic Camera.
-	
+
+	static float cameraSpeedX = 1;
+	static float cameraSpeedY = 1;
+	static float cameraSpeedZ = 1;
+
+	{
+		float targetCurrentSpeed = static_cast< float >(isShiftPressed + 1);
+		float targetCameraSpeedX = x * targetCurrentSpeed;
+		float targetCameraSpeedY = -y * targetCurrentSpeed;
+		float targetCameraSpeedZ = z * targetCurrentSpeed;
+
+		if (isCtrlPressed) {
+			float acceleration = 0.1f * static_cast< float >(isShiftPressed + 1);
+
+			cameraSpeedX = (targetCameraSpeedX - cameraSpeedX) * acceleration + cameraSpeedX;
+			cameraSpeedY = (targetCameraSpeedY - cameraSpeedY) * acceleration + cameraSpeedY;
+			cameraSpeedZ = (targetCameraSpeedZ - cameraSpeedZ) * acceleration + cameraSpeedZ;
+		} else {
+			cameraSpeedX = targetCameraSpeedX;
+			cameraSpeedY = targetCameraSpeedY;
+			cameraSpeedZ = targetCameraSpeedZ;
+		}
+	}
+
 	yaw += mouseX * 0.1 * mouseSensitivity;
 	pitch += mouseY * -0.1 * mouseSensitivity;
 
-	if (pitch > 89.0f) pitch = 89.0f;
-	else if (pitch < -89.0f) pitch = -89.0f;
+	static float pitchLimit = std::nexttowardf(90.0f, 0.0);
+
+	if (pitch > pitchLimit) pitch = pitchLimit;
+	else if (pitch < -pitchLimit) pitch = -pitchLimit;
 
 	{
 		glm::vec3 front;
@@ -148,11 +181,14 @@ void OpenCAGELevelViewer::_3DView::updateCamera(signed char x, signed char y, si
 		front.y = sin(glm::radians(pitch));
 		front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
 		cameraFront = glm::normalize(front);
+
+		cameraRight = glm::normalize(glm::cross(up, cameraFront));
+		cameraUp = glm::cross(cameraFront, cameraRight);
 	}
 
-	cameraPos += ((deltaTime * 5.0f) * cameraFront * static_cast< float >(z) * static_cast< float >(isShiftPressed + 1));
-	cameraPos += ((deltaTime * 5.0f) * cameraUp * static_cast< float >(-y) * static_cast< float >(isShiftPressed + 1));
-	cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * (deltaTime * 5.0f) * static_cast< float >(x) * static_cast< float >(isShiftPressed + 1);
+	cameraPos += cameraFront                                       * (deltaTime * 5.0f) * cameraSpeedZ;
+	cameraPos += cameraUp                                          * (deltaTime * 5.0f) * cameraSpeedY;
+	cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * (deltaTime * 5.0f) * cameraSpeedX;
 
 	fov += -scrollY;
 
@@ -412,6 +448,7 @@ static GLuint createShaderProgram(std::string vertexShaderPath, std::string frag
 #pragma endregion
 
 GLuint baseProgram;
+GLuint axisPlaneProgram;
 GLuint axisXProgram;
 GLuint axisYProgram;
 GLuint axisZProgram;
@@ -464,6 +501,7 @@ void OpenCAGELevelViewer::_3DView::Initalise(void) {
 		std::cout << std::filesystem::current_path() << std::endl;
 
 		baseProgram = createShaderProgram("VertexShader.vert", "FragmentShader.frag");
+		axisPlaneProgram = createShaderProgram("AxisPlaneVertexShader.vert", "AxisPlaneFragmentShader.frag");
 		axisXProgram = createShaderProgram("AxisVertexShader.vert", "AxisFragmentShaderX.frag");
 		axisYProgram = createShaderProgram("AxisVertexShader.vert", "AxisFragmentShaderY.frag");
 		axisZProgram = createShaderProgram("AxisVertexShader.vert", "AxisFragmentShaderZ.frag");
@@ -547,6 +585,37 @@ void OpenCAGELevelViewer::_3DView::Initalise(void) {
 	glBindVertexArray(0);
 
 	_3dViewAxisArrowIndicesCount = axisArrowIndices.size();
+
+
+	glGenVertexArrays(1, &_3dViewAxisPlaneVao);
+
+	glGenBuffers(1, &_3dViewAxisPlaneVbo);
+	constexpr std::array < float, 4 * 2 > axisPlaneFalseVertices {
+		1.0, 1.0,
+		-1.0, 1.0,
+		-1.0, -1.0,
+		1.0, -1.0
+	};
+	glBindBuffer(GL_ARRAY_BUFFER, _3dViewAxisPlaneVbo);
+	glBufferData(GL_ARRAY_BUFFER, axisPlaneFalseVertices.size() * sizeof(unsigned int), axisPlaneFalseVertices.data(), GL_STATIC_DRAW);
+
+	glGenBuffers(1, &_3dViewAxisPlaneEbo);
+
+	glBindVertexArray(_3dViewAxisPlaneVao);
+
+	glBindVertexBuffer(0, _3dViewAxisPlaneVbo, 0, sizeof(float) * 2);
+	glVertexAttribFormat(0, 2, GL_FLOAT, GL_FALSE, 0);
+	glVertexAttribBinding(0, 0);
+	glEnableVertexAttribArray(0);
+
+	constexpr std::array < unsigned int, 6 > axisPlaneIndices {
+		0, 1, 2,
+		2, 3, 0
+	};
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _3dViewAxisPlaneEbo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, axisPlaneIndices.size() * sizeof(unsigned int), axisPlaneIndices.data(), GL_STATIC_DRAW);
+
+	glBindVertexArray(0);
 	//glBufferData(GL_ARRAY_BUFFER, sizeof())
 #pragma endregion
 #pragma endregion
@@ -799,16 +868,16 @@ static void allocateMRVEBO() {
 	for (const auto &model : OpenCAGELevelViewer::AllInOne::ContentManager::models) {
 		{
 			MRBufferAllocation vboAllocation {
-				model.second.modelId,
-				model.second.vertices.size(),
+				model.first,
+				model.second.first.vertices.size(),
 				(!workingVboAllocations.empty()) ? (workingVboAllocations[workingVboAllocations.size() - 1].offset + workingVboAllocations[workingVboAllocations.size() - 1].size) : 0
 			};
 
 			workingVboAllocations.push_back(vboAllocation);
 
 			MRBufferAllocation eboAllocation {
-				model.second.modelId,
-				model.second.elements.size(),
+				model.first,
+				model.second.first.elements.size(),
 				(!workingEboAllocations.empty()) ? (workingEboAllocations[workingEboAllocations.size() - 1].offset + workingEboAllocations[workingEboAllocations.size() - 1].size) : 0
 			};
 
@@ -816,8 +885,8 @@ static void allocateMRVEBO() {
 		}
 
 		{
-			workingVbo.insert(workingVbo.end(), model.second.vertices.begin(), model.second.vertices.end());
-			workingEbo.insert(workingEbo.end(), model.second.elements.begin(), model.second.elements.end());
+			workingVbo.insert(workingVbo.end(), model.second.first.vertices.begin(), model.second.first.vertices.end());
+			workingEbo.insert(workingEbo.end(), model.second.first.elements.begin(), model.second.first.elements.end());
 			/*for (const auto index : model.second.elements) {
 				workingEbo.push_back(((!workingEboAllocations.empty()) ? (workingEboAllocations[workingEboAllocations.size() - 1].offset) : 0) + index);
 			}*/
@@ -845,15 +914,19 @@ static void fillInMRInstanceBuffer() {
 	std::vector < OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL > workingInstanceBuffer;
 	std::vector < MRBufferAllocation > workingInstanceBufferAllocations;
 
-	for (const auto &modelReferences : OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences) {
-		if (modelReferences.second.empty())
+	for (const auto &model : OpenCAGELevelViewer::AllInOne::ContentManager::models) {
+		if (model.second.second.empty())
 			continue;
 
-		workingInstanceBuffer.insert(workingInstanceBuffer.end(), modelReferences.second.begin(), modelReferences.second.end());
+		for (const auto &modelReferenceId : model.second.second) {
+			workingInstanceBuffer.push_back(OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences[modelReferenceId.first].second[modelReferenceId.second]);
+		}
+
+		//workingInstanceBuffer.insert(workingInstanceBuffer.end(), modelReferences.second.second.begin(), modelReferences.second.second.end());
 
 		MRBufferAllocation instanceBufferAllocation {
-			modelReferences.first,
-			modelReferences.second.size(),
+			model.first,
+			model.second.second.size(),
 			(!workingInstanceBufferAllocations.empty()) ? workingInstanceBufferAllocations[workingInstanceBufferAllocations.size() - 1].offset + workingInstanceBufferAllocations[workingInstanceBufferAllocations.size() - 1].size : 0};
 		workingInstanceBufferAllocations.push_back(instanceBufferAllocation);
 	}
@@ -921,30 +994,36 @@ static void makeMRVAO() {
 	glEnableVertexAttribArray(0);
 	glEnableVertexAttribArray(1);
 
-	size_t test = offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, worldPosition);
+	//size_t test = offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, worldPosition);
 
-	std::cout << "instance id offset " << offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, instanceId) << std::endl;
-	std::cout << "world pos offset " << offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, worldPosition) << std::endl;
-	std::cout << "world rot offset " << offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, worldRotation) << std::endl;
-	std::cout << "col offset offset " << offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, colOffset) << std::endl;
+	//std::cout << "instance id offset " << offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, instanceId) << std::endl;
+	//std::cout << "world pos offset " << offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, worldPosition) << std::endl;
+	//std::cout << "world rot offset " << offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, worldRotation) << std::endl;
+	//std::cout << "col offset offset " << offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, colOffset) << std::endl;
 
 	glBindVertexBuffer(1, MRInstanceBuffer, 0, sizeof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL));
 	glVertexAttribFormat(2, 1, GL_UNSIGNED_INT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, instanceId));
-	glVertexAttribFormat(3, 3, GL_FLOAT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, worldPosition));
-	glVertexAttribFormat(4, 3, GL_FLOAT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, worldRotation));
-	glVertexAttribFormat(5, 4, GL_FLOAT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, modelCol));
-	glVertexAttribFormat(6, 4, GL_FLOAT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, colOffset));
+	glVertexAttribFormat(3, 4, GL_FLOAT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, worldMatrix));
+	glVertexAttribFormat(4, 4, GL_FLOAT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, worldMatrix) + sizeof(float) * 4 * 1);
+	glVertexAttribFormat(5, 4, GL_FLOAT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, worldMatrix) + sizeof(float) * 4 * 2);
+	glVertexAttribFormat(6, 4, GL_FLOAT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, worldMatrix) + sizeof(float) * 4 * 3);
+	glVertexAttribFormat(7, 4, GL_FLOAT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, modelCol));
+	glVertexAttribFormat(8, 4, GL_FLOAT, GL_FALSE, offsetof(OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL, colOffset));
 	glVertexAttribBinding(2, 1);
 	glVertexAttribBinding(3, 1);
 	glVertexAttribBinding(4, 1);
 	glVertexAttribBinding(5, 1);
 	glVertexAttribBinding(6, 1);
+	glVertexAttribBinding(7, 1);
+	glVertexAttribBinding(8, 1);
 	glVertexBindingDivisor(1, 1);
 	glEnableVertexAttribArray(2);
 	glEnableVertexAttribArray(3);
 	glEnableVertexAttribArray(4);
 	glEnableVertexAttribArray(5);
 	glEnableVertexAttribArray(6);
+	glEnableVertexAttribArray(7);
+	glEnableVertexAttribArray(8);
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, MRElementBuffer);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, MRIndirectBuffer);
@@ -984,6 +1063,7 @@ static void regenerateMRVAO() {
 	}
 }
 
+#pragma managed(push, off)
 void OpenCAGELevelViewer::_3DView::Render(ImVec2 windowSize/*, std::optional<std::variant<OpenCAGELevelViewer::ContentManager::UnmanagedModelReference, OpenCAGELevelViewer::ContentManager::UnmanagedComposite>> unmanagedModelReference*//*, int msaaSamples*/) {
 	regenerateMRVAO();
 
@@ -1166,7 +1246,34 @@ void OpenCAGELevelViewer::_3DView::Render(ImVec2 windowSize/*, std::optional<std
 		glUniformMatrix4fv(glGetUniformLocation(axisYProgram, "model"), 1, GL_FALSE, &modelMatrix[0][0]);
 
 		glDrawElements(GL_TRIANGLES, _3dViewAxisArrowIndicesCount, GL_UNSIGNED_INT, 0);
+
+		glBindVertexArray(0);
 	}
+
+	//glClear(GL_DEPTH_BUFFER_BIT);
+
+	/*
+	{
+		//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+		glUseProgram(axisPlaneProgram);
+		glUniformMatrix4fv(glGetUniformLocation(axisPlaneProgram, "projection"), 1, GL_FALSE, &projection[0][0]);
+		glUniformMatrix4fv(glGetUniformLocation(axisPlaneProgram, "view"), 1, GL_FALSE, &view[0][0]);
+		glUniform1f(glGetUniformLocation(axisPlaneProgram, "axisPlaneSize"), 1);
+		glUniform1ui(glGetUniformLocation(axisPlaneProgram, "enabledAxisPlanes"), 0b111);
+
+		glBindVertexArray(_3dViewAxisPlaneVao);
+
+		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+		//glDrawArrays(GL_TRIANGLES, 0, 3);
+
+		glBindVertexArray(0);
+
+		//glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+		//glDrawArraysInstanced(GL_TRIANGLES, 0, )
+	}
+	*/
 
 	//glDisable(GL_BLEND);
 
@@ -1186,6 +1293,7 @@ void OpenCAGELevelViewer::_3DView::Render(ImVec2 windowSize/*, std::optional<std
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 #pragma endregion
 }
+#pragma managed(pop)
 
 void OpenCAGELevelViewer::_3DView::Quit(void) {
 	glDeleteProgram(_3dViewShaderProgram);

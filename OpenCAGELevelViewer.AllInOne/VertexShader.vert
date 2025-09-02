@@ -2,10 +2,9 @@
 layout (location = 0) in vec3 vPos;
 layout (location = 1) in vec4 vCol;
 layout (location = 2) in uint iId;
-layout (location = 3) in vec3 iPos;
-layout (location = 4) in vec3 iRot;
-layout (location = 5) in vec4 iModelCol;
-layout (location = 6) in vec4 iColOffset;
+layout (location = 3) in mat4 iMat;
+layout (location = 7) in vec4 iModelCol;
+layout (location = 8) in vec4 iColOffset;
 
 out vec4 colour;
 
@@ -18,10 +17,34 @@ uniform int vertexColourMode;
 uniform mat4 view;
 uniform mat4 projection;
 
+uint hash32(uint x)
+{
+    x ^= x >> 17;
+    x *= 0xed5ad4bbU;
+    x ^= x >> 11;
+    x *= 0xac4c1b51U;
+    x ^= x >> 15;
+    x *= 0x31848babU;
+    x ^= x >> 14;
+    return x;
+}
+
+uint truncate(uint x) {
+	uint w = x & 0xFFU;
+	
+	x >>= 8;
+	x ^= w;
+	x ^= w << 8;
+	x ^= w << 16;
+
+	return x;
+}
+
 void main()
 {
 	//mat4 model = mat4(1.0);
 
+	/*
 	float iRotXRad = iRot.x * PI_180;
 	mat4 worldMatrixXRot  = mat4(1.0);
 
@@ -56,6 +79,7 @@ void main()
 
 
 	mat4 worldMatrix = worldMatrixTrans * worldMatrixRot;
+	*/
 	//mat4 worldMatrix = mat4(1.0);
 	
 	vec4 coreColour;
@@ -66,6 +90,18 @@ void main()
 			break;
 		case 1:
 			coreColour = vCol;
+			break;
+		case 2:
+			{
+				uint instanceColourUint = iId;
+				coreColour = vec4(((instanceColourUint >> 16) & uint(0xFF)) / 255.0f, ((instanceColourUint >> 8) & uint(0xFF)) / 255.0f, ((instanceColourUint >> 0) & uint(0xFF)) / 255.0f, 1.0);
+			}
+			break;
+		case 3:
+			{
+				const float positionDiv = 32;
+				coreColour = vec4((iMat[3][0] / positionDiv + 1) / 2 + 1, iMat[3][1] / positionDiv + 0.5, iMat[3][2] / positionDiv + 0.5, 1.0);
+			}
 			break;
 	}
 
@@ -78,5 +114,5 @@ void main()
 	//}
 	//colour = vec4(iPos.x, iPos.y, iPos.z, 1.0);
 
-	gl_Position = projection * view * worldMatrix * vec4(vPos, 1.0);
+	gl_Position = projection * view * iMat * vec4(vPos, 1.0);
 }

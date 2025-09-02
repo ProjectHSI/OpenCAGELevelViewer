@@ -18,12 +18,16 @@ namespace OpenCAGELevelViewer {
 
 		
 		enum VertexColourMode {
-			MAT_BASED   = 0,
-			MODEL_BASED = 1
+			MAT_BASED = 0,
+			MODEL_BASED = 1,
+			INSTANCE_ID_BASED = 2,
+			POSITION_BASED = 3,
 		};
-		constexpr std::array < std::pair < VertexColourMode, const char * >, 2 > vertexColourModeNames = {
+		constexpr std::array < std::pair < VertexColourMode, const char * >, 4 > vertexColourModeNames = {
 			std::pair < VertexColourMode, const char * > { VertexColourMode::MAT_BASED,   "Material Based" },
-			std::pair < VertexColourMode, const char * > { VertexColourMode::MODEL_BASED, "Model Based" }
+			std::pair < VertexColourMode, const char * > { VertexColourMode::MODEL_BASED, "Model Based" },
+			std::pair < VertexColourMode, const char * > { VertexColourMode::INSTANCE_ID_BASED, "Instance ID Based" },
+			std::pair < VertexColourMode, const char * > { VertexColourMode::POSITION_BASED, "Position Based" }
 		};
 		extern VertexColourMode vertexColourMode;
 

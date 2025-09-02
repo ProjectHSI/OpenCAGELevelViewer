@@ -103,5 +103,11 @@
       <Filter>Resource Files</Filter>
     </None>
     <None Include="Configuration.proto" />
+    <None Include="AxisPlaneVertexShader.vert">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="AxisPlaneFragmentShader.frag">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

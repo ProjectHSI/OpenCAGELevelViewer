@@ -129,7 +129,22 @@ struct CommandsContent {
 };
 
 #pragma managed(push, on)
-static bool fillInCommandsContentChildren(CommandsContentChildren &commandsContentChildren) {
+//const std::string *compositeStringContainsSearchTerm
+
+ref class CompositeNameSearchTermPredicate {
+private:
+	System::String ^searchTerm;
+public:
+	CompositeNameSearchTermPredicate(System::String ^_searchTerm) {
+		searchTerm = _searchTerm;
+	}
+
+	bool Predicate(System::String ^composite) {
+		return composite->ToLower()->Contains(searchTerm->ToLower());
+	}
+};
+
+static bool fillInCommandsContentChildren(CommandsContentChildren &commandsContentChildren, const std::string &searchTerm) {
 	commandsContentChildren.clear();
 
 	std::lock_guard cmLock(OpenCAGELevelViewer::AllInOne::ContentManager::cmMutex);
@@ -147,7 +162,15 @@ static bool fillInCommandsContentChildren(CommandsContentChildren &commandsConte
 	if (localCommandsHandle == nullptr)
 		return false;
 
-	for each(System::String ^ compositeName in localCommandsHandle->GetCompositeNames()) {
+	CompositeNameSearchTermPredicate ^compositeNameSearchTermPredicate = gcnew CompositeNameSearchTermPredicate(gcnew System::String(searchTerm.data()));
+	System::Func < System::String ^, bool > ^compositeNameSearchTermPredicateInstance = gcnew System::Func < System::String ^, bool >(compositeNameSearchTermPredicate, &CompositeNameSearchTermPredicate::Predicate);
+
+	for each(System::String ^ compositeName in
+			 System::Linq::ParallelEnumerable::Where(
+			 System::Linq::ParallelEnumerable::AsParallel < System::String ^ >(
+			 localCommandsHandle->GetCompositeNames()
+	), compositeNameSearchTermPredicateInstance)
+	) {
 		CommandsContentChildren *currentCommandsContentChildren = &commandsContentChildren;
 
 		System::String ^displayCompositeName = compositeName;
@@ -207,6 +230,14 @@ static void renderCommandsContentChildren(const CommandsContentChildren &command
 	}
 }
 
+bool commandsContentRerenderNeeded = false;
+
+//static int searchCallback(ImGuiInputTextCallbackData *data) {
+//	switch (data->EventFlag) {
+//		case ImGuiInputTextFlags_CallbackEdit
+//	}
+//}
+
 static void renderCommandsContentWindow() {
 	if (commandsEditorDependent.test())
 		return;
@@ -215,15 +246,23 @@ static void renderCommandsContentWindow() {
 		if (ImGui::Begin("Composites List", &commandsContentWindowOpen)) {
 			static CommandsContentChildren commandsContent {};
 
-			{
-				static size_t combinedHash = 0;
-				//static bool commandsContentNeedsUpdate = true;
+			static std::string compositeSearch(255, '\0');
+			if (ImGui::InputTextWithHint("Search", "Enter the name of a composite here", compositeSearch.data(), compositeSearch.size()))
+				commandsContentRerenderNeeded = true;
 
-				if (combinedHash != OpenCAGELevelViewer::AllInOne::combineHash(OpenCAGELevelViewer::AllInOne::ContentManager::getGameRootHash(), OpenCAGELevelViewer::AllInOne::ContentManager::getLevelHash()) ) {
-					if (fillInCommandsContentChildren(commandsContent))
-						combinedHash = OpenCAGELevelViewer::AllInOne::combineHash(OpenCAGELevelViewer::AllInOne::ContentManager::getGameRootHash(), OpenCAGELevelViewer::AllInOne::ContentManager::getLevelHash());
+			//{
+			static size_t combinedHash = 0;
+			//static bool commandsContentNeedsUpdate = true;
+
+			if (combinedHash != OpenCAGELevelViewer::AllInOne::combineHash(OpenCAGELevelViewer::AllInOne::ContentManager::getGameRootHash(), OpenCAGELevelViewer::AllInOne::ContentManager::getLevelHash()))
+				commandsContentRerenderNeeded = true;
+			//}
+
+			if (commandsContentRerenderNeeded)
+				if (fillInCommandsContentChildren(commandsContent, compositeSearch)) {
+					combinedHash = OpenCAGELevelViewer::AllInOne::combineHash(OpenCAGELevelViewer::AllInOne::ContentManager::getGameRootHash(), OpenCAGELevelViewer::AllInOne::ContentManager::getLevelHash());
+					commandsContentRerenderNeeded = false;
 				}
-			}
 
 			renderCommandsContentChildren(commandsContent);
 		}
@@ -361,13 +400,13 @@ int handoff(char **argv, int argc) {
 					break;
 				case SDL_EVENT_MOUSE_MOTION:
 					if (_3dViewLockInput) {
-						xMouse = event.motion.xrel;
-						yMouse = event.motion.yrel;
+						xMouse += event.motion.xrel;
+						yMouse += event.motion.yrel;
 					}
 					break;
 				case SDL_EVENT_MOUSE_WHEEL:
 					if (_3dViewLockInput) {
-						yScroll = event.wheel.y;
+						yScroll += event.wheel.y;
 					}
 					break;
 				case SDL_EVENT_KEY_DOWN:

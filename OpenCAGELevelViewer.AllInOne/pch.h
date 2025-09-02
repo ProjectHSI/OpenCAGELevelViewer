@@ -26,6 +26,13 @@
 #include <unordered_map>
 #include <string>
 #include <filesystem>
+#include <optional>
+#include <variant>
+#include <mutex>
+#include <memory>
+#include <atomic>
+#include <cstdint>
+#include <type_traits>
 
 #include <msclr/gcroot.h>
 #include <msclr/marshal.h>

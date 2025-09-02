@@ -7,25 +7,28 @@
 //#include "Configuration.pb.h"
 
 #include <chrono>
+#include <filesystem>
 #include <iostream>
 #include <mutex>
+#include <numbers>
 #include <string>
 #include <thread>
-#include <filesystem>
 
 //#include <cliext/hash_map>
 //#include <cliext/list>
 //#include <cliext/vector>
 
-#include "glm/ext/vector_int4_sized.hpp"
-#include "glm/ext/vector_uint4_sized.hpp"
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <cmath>
 #include <exception>
 #include <functional>
 #include <glm/glm.hpp>
+#include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <iterator>
 #include <map>
@@ -152,9 +155,9 @@ std::atomic < OpenCAGELevelViewer::AllInOne::ContentManager::CMStatus > OpenCAGE
 std::recursive_mutex OpenCAGELevelViewer::AllInOne::ContentManager::cmMutex {};
 
 msclr::gcroot < System::Collections::Generic::List < System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^ > ^ > OpenCAGELevelViewer::AllInOne::ContentManager::compositesById {};
-std::map < uint64_t, OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > OpenCAGELevelViewer::AllInOne::ContentManager::models {};
+std::map < uint64_t, std::pair < OpenCAGELevelViewer::AllInOne::ContentManager::CMModel, std::vector < std::pair < uint64_t, size_t > > > > OpenCAGELevelViewer::AllInOne::ContentManager::models {};
 std::map < uint64_t, OpenCAGELevelViewer::AllInOne::ContentManager::CMMaterial > OpenCAGELevelViewer::AllInOne::ContentManager::materials {};
-std::map < uint64_t, std::vector < OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL > > OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences {};
+std::map < uint64_t, std::pair < msclr::gcroot < OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceDataValue ^ >, std::vector < OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL > > > OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences {};
 msclr::gcroot < OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^ > OpenCAGELevelViewer::AllInOne::ContentManager::entityDataRoot { };
 
 template<typename T, bool CorrectForEndianness = (sizeof(T) > 1), bool IsDataLittleEndian = true, size_t ByteSwapDivisor = sizeof(T)>
@@ -224,14 +227,14 @@ static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > 
 			auto submeshContent = OpenCAGELevelViewer::AllInOne::convertCliArray(submesh->content);
 
 			size_t rollingIndex = 0;
-			
+
 			System::Collections::Generic::List < System::Collections::Generic::List < CATHODE::Models::AlienVBF::Element ^ > ^ > ^formats = submesh->VertexFormat->Elements;
 
 			for (size_t i = 0; i < formats->Count; i++) {
 				//std::cout << "Processing seg " << i + 1 << "/" << formats->Count << std::endl << std::flush;
 
 				System::Collections::Generic::List < CATHODE::Models::AlienVBF::Element ^ > ^elements = formats[i];
-				
+
 				bool inIndexMode = i == formats->Count - 1;
 				size_t xIterations = inIndexMode ? submesh->IndexCount : submesh->VertexCount;
 
@@ -410,7 +413,7 @@ static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > 
 								{
 									glm::fvec4 v = popTFromArray< glm::u8vec4, false >(rollingIndex, submeshContent);
 									v /= 255.0f;
-									
+
 									// TODO: Bone weights, UV
 
 									break;
@@ -425,7 +428,7 @@ static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > 
 									break;
 								}
 							case CATHODE::Models::VBFE_InputType::VECTOR4_INT16_DIVMAX:
-								{									
+								{
 									glm::fvec4 v = popTFromArray< glm::i16vec4, true, true, 2 >(rollingIndex, submeshContent);
 
 									v /= static_cast < float >(std::numeric_limits < int16_t >::max());
@@ -466,10 +469,10 @@ static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > 
 
 		// TODO: Interleave to create a vertex buffer object
 
-		OpenCAGELevelViewer::AllInOne::ContentManager::models[entryIndex] = model;
+		OpenCAGELevelViewer::AllInOne::ContentManager::models[entryIndex] = {model, {}};
 		return model;
 	} else {
-		return OpenCAGELevelViewer::AllInOne::ContentManager::models[entryIndex];
+		return OpenCAGELevelViewer::AllInOne::ContentManager::models[entryIndex].first;
 	}
 }
 
@@ -482,7 +485,10 @@ static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > 
 static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMMaterial > getCMMaterial(int entryIndex) {
 	if (!OpenCAGELevelViewer::AllInOne::ContentManager::materials.contains(entryIndex)) {
 		CATHODE::Materials::Material ^material = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->ModelsMTL->GetAtWriteIndex(entryIndex);
-		CATHODE::Shaders::Shader ^shader = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Shaders. [material->ShaderIndex];
+
+		// TODO: Replace this with CATHODE.Shaders when it supports what we need to do. I'm just tired of just trying to do this with CATHODE.Shaders.
+		CATHODE::LEGACY::ShadersPAK::ShaderEntry ^shader = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Shaders->Shaders[material->ShaderIndex];
+		CATHODE::LEGACY::ShadersPAK::ShaderMaterialMetadata ^shaderMetadata = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Shaders->GetMaterialMetadataFromShader(material);
 		//shader.
 
 		OpenCAGELevelViewer::AllInOne::ContentManager::CMMaterial cmMaterial;
@@ -514,48 +520,79 @@ static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMMaterial
 
 		All other material types are not handled in the switch block, and thus are implictly '<null>'.
 		*/
-		switch (shader->Category) {
-			case CATHODE::Shaders::ShaderCategory::CA_ENVIRONMENT:
-				materialDiffuseIndex = 7;
-				break;
-			case CATHODE::Shaders::ShaderCategory::CA_CHARACTER:
-				materialDiffuseIndex = 16;
-				break;
-			case CATHODE::Shaders::ShaderCategory::CA_SKIN:
-				materialDiffuseIndex = 5;
-				break;
-			case CATHODE::Shaders::ShaderCategory::CA_HAIR:
-				materialDiffuseIndex = 2;
-				break;
-			case CATHODE::Shaders::ShaderCategory::CA_EYE:
-				// CA_EYE is handled, but no diffuse...
-				break;
-			case CATHODE::Shaders::ShaderCategory::CA_LIGHTMAP_ENVIRONMENT:
-				materialDiffuseIndex = 12;
-				break;
-			default:
-				// All other material types are not handled
+		//switch (shaderMetadata->Category) {
+		//	case CATHODE::Shaders::ShaderCategory::CA_ENVIRONMENT:
+		//		materialDiffuseIndex = 7;
+		//		break;
+		//	case CATHODE::Shaders::ShaderCategory::CA_CHARACTER:
+		//		materialDiffuseIndex = 16;
+		//		break;
+		//	case CATHODE::Shaders::ShaderCategory::CA_SKIN:
+		//		materialDiffuseIndex = 5;
+		//		break;
+		//	case CATHODE::Shaders::ShaderCategory::CA_HAIR:
+		//		materialDiffuseIndex = 2;
+		//		break;
+		//	case CATHODE::Shaders::ShaderCategory::CA_EYE:
+		//		// CA_EYE is handled, but no diffuse...
+		//		break;
+		//	case CATHODE::Shaders::ShaderCategory::CA_LIGHTMAP_ENVIRONMENT:
+		//		materialDiffuseIndex = 12;
+		//		break;
+		//	default:
+		//		// All other material types are not handled
+		//		break;
+		//}
+
+		switch (shaderMetadata->shaderCategory) {
+			//Unsupported shader slot types - draw transparent for now
+			case CATHODE::LEGACY::ShadersPAK::ShaderCategory::CA_SHADOWCASTER:
+			case CATHODE::LEGACY::ShadersPAK::ShaderCategory::CA_DEFERRED:
+			case CATHODE::LEGACY::ShadersPAK::ShaderCategory::CA_DEBUG:
+			case CATHODE::LEGACY::ShadersPAK::ShaderCategory::CA_OCCLUSION_CULLING:
+			case CATHODE::LEGACY::ShadersPAK::ShaderCategory::CA_FOGSPHERE:
+			case CATHODE::LEGACY::ShadersPAK::ShaderCategory::CA_FOGPLANE:
+			case CATHODE::LEGACY::ShadersPAK::ShaderCategory::CA_EFFECT_OVERLAY:
+			case CATHODE::LEGACY::ShadersPAK::ShaderCategory::CA_DECAL:
+			case CATHODE::LEGACY::ShadersPAK::ShaderCategory::CA_VOLUME_LIGHT:
+			case CATHODE::LEGACY::ShadersPAK::ShaderCategory::CA_REFRACTION:
+				cmMaterial.renderable = false;
 				break;
 		}
 
-		if (materialDiffuseIndex == -1)
-			cmMaterial.renderable = false;
+		// set by default
+		if (cmMaterial.renderable) { 
+			materialDiffuseIndex = shaderMetadata->cstIndexes->Diffuse0;
 
-		bool setDiffuse = false;
+			//if (materialDiffuseIndex == -1)
+				//cmMaterial.renderable = false;
 
-		for (size_t i = 0; i < shader->CSTLinks->Length; i++) {
-			auto cstDataArray = OpenCAGELevelViewer::AllInOne::convertCliArray < unsigned char > (OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->ModelsMTL->CSTData[i]);
-			//std::vector < unsigned char > cstDataArray = {};
+			bool setDiffuse = false;
 
-			if (entryIndex < cstDataArray.size() && shader->CSTLinks[i][materialDiffuseIndex] != 255) {
-				assert(!setDiffuse);
+			for (size_t i = 0; i < shader->Header.CSTCounts->Length; i++) {
+				auto cstDataArray = OpenCAGELevelViewer::AllInOne::convertCliArray < unsigned char >(OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->ModelsMTL->CSTData[i]);
+				//std::vector < unsigned char > cstDataArray = {};
 
-				cmMaterial.materialCol = getTFromArray < glm::fvec4 >((material->ConstantBuffers[i]->Offset * 4) + (shader->CSTLinks[i][materialDiffuseIndex] * 4), cstDataArray);
+				int baseOffset = (material->ConstantBuffers[i]->Offset * 4);
+
+				if (!(materialDiffuseIndex >= 0 &&
+					materialDiffuseIndex < shader->Header.CSTCounts[i] &&
+					shader->CSTLinks[i][materialDiffuseIndex] != -1 &&
+					shader->CSTLinks[i][materialDiffuseIndex] != 255))
+					continue;
+
+				//if (entryIndex < cstDataArray.size() && shader->CSTLinks[i][materialDiffuseIndex] != 255) {
+					//assert(!setDiffuse);
+
+				cmMaterial.materialCol = getTFromArray < glm::fvec4 >(baseOffset + (shader->CSTLinks[i][materialDiffuseIndex] * 4), cstDataArray);
 				setDiffuse = true;
+				//}
 			}
+
+			cmMaterial.renderable = setDiffuse;
 		}
 
-		assert(setDiffuse);
+		//assert(setDiffuse);
 
 		OpenCAGELevelViewer::AllInOne::ContentManager::materials[entryIndex] = cmMaterial;
 		return cmMaterial;
@@ -565,19 +602,38 @@ static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMMaterial
 }
 #pragma endregion
 
-static OpenCAGELevelViewer::AllInOne::ContentManager::EntityDataValue ^getEntityFromEntityPath(System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^entityPath) {
-	OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^current = OpenCAGELevelViewer::AllInOne::ContentManager::entityDataRoot.operator OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^ ();
-	array < CATHODE::Scripting::ShortGuid > ^entityPathAsArray = entityPath->ToArray();
+static OpenCAGELevelViewer::AllInOne::ContentManager::EntityDataValue ^getEntityFromEntityPath(array < CATHODE::Scripting::ShortGuid > ^entityPath, OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^startingComposite = OpenCAGELevelViewer::AllInOne::ContentManager::entityDataRoot.operator OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^ ()) {
+	assert(startingComposite != nullptr);
+	assert(entityPath != nullptr);
+	assert(entityPath->Length > 1 || entityPath[0].AsUInt32 != 0); // avoid effectively null entity paths
+	
+	OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^current = startingComposite;
 
-	for (size_t i = 0; i < entityPath->Count; i++) {
-		CATHODE::Scripting::ShortGuid shortGuid = entityPathAsArray[i];
-		OpenCAGELevelViewer::AllInOne::ContentManager::EntityDataValue ^entityDataValue = current->children[shortGuid];
+	bool isRootEntityPath = startingComposite == OpenCAGELevelViewer::AllInOne::ContentManager::entityDataRoot.operator OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^ ();
+		
+	//if (isRootEntityPath)
+		//__debugbreak();
+	//array < CATHODE::Scripting::ShortGuid > ^entityPathAsArray = entityPath->ToArray();
 
-		if (i == entityPath->Count - 1)
+	for (size_t i = 0; i < entityPath->Length; i++) {
+		CATHODE::Scripting::ShortGuid shortGuid = entityPath[i];
+
+		if (i == 0 && isRootEntityPath && shortGuid == startingComposite->composite->shortGUID)
+			continue;
+
+		OpenCAGELevelViewer::AllInOne::ContentManager::EntityDataValue ^entityDataValue;
+		if (!current->children->TryGetValue(shortGuid, entityDataValue))
+			return nullptr;
+
+		if (i == entityPath->Length - 1 || (entityPath->Length > 1 && i == entityPath->Length - 2 && entityPath[entityPath->Length - 1].AsUInt32 == 0))
 			return entityDataValue;
 		else
 			current = dynamic_cast < OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^ >(entityDataValue);
 	}
+}
+
+static OpenCAGELevelViewer::AllInOne::ContentManager::EntityDataValue ^getEntityFromEntityPath(CATHODE::Scripting::EntityPath ^entityPath, OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^startingComposite = OpenCAGELevelViewer::AllInOne::ContentManager::entityDataRoot.operator OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^ ()) {
+	return getEntityFromEntityPath(entityPath->path, startingComposite);
 }
 
 static System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^getEntityPathFromEntity(OpenCAGELevelViewer::AllInOne::ContentManager::EntityDataValue ^entityDataValue) {
@@ -618,19 +674,25 @@ static uint8_t sortEntity(CATHODE::Scripting::Internal::Entity ^source) {
 	}
 }
 
-static OpenCAGELevelViewer::AllInOne::ContentManager::ManagedTransform ^getManagedTransformFromEntity(CATHODE::Scripting::FunctionEntity ^entity) {
-	OpenCAGELevelViewer::AllInOne::ContentManager::ManagedTransform ^transform = gcnew OpenCAGELevelViewer::AllInOne::ContentManager::ManagedTransform();
+static OpenCAGELevelViewer::AllInOne::ContentManager::ManagedTransform ^getManagedTransformFromEntity(CATHODE::Scripting::Internal::Entity ^entity) {
+	OpenCAGELevelViewer::AllInOne::ContentManager::ManagedTransform ^transform = nullptr;
 	CATHODE::Scripting::Parameter ^positionParam = entity->GetParameter("position");
+
+	//if (positionParam == nullptr)
+		//__debugbreak();
+
 	if (positionParam != nullptr && positionParam->content != nullptr) {
 		switch (positionParam->content->dataType) {
-			case CATHODE::Scripting::DataType::TRANSFORM: {
-				CATHODE::Scripting::cTransform ^transformContent = dynamic_cast< CATHODE::Scripting::cTransform ^ >(positionParam->content);
-				if (transformContent != nullptr) {
-					transform->position = System::Numerics::Vector3(transformContent->position.X, transformContent->position.Y, transformContent->position.Z);
-					transform->rotation = System::Numerics::Vector3(transformContent->rotation.X, transformContent->rotation.Y, transformContent->rotation.Z);
+			case CATHODE::Scripting::DataType::TRANSFORM:
+				{
+					CATHODE::Scripting::cTransform ^transformContent = dynamic_cast< CATHODE::Scripting::cTransform ^ >(positionParam->content);
+					if (transformContent != nullptr) {
+						transform = gcnew OpenCAGELevelViewer::AllInOne::ContentManager::ManagedTransform();
+						transform->position = transformContent->position;
+						transform->rotation = transformContent->rotation;
+					}
+					break;
 				}
-				break;
-			}
 			default:
 				break;
 		}
@@ -640,85 +702,133 @@ static OpenCAGELevelViewer::AllInOne::ContentManager::ManagedTransform ^getManag
 
 static void CascadeMain(OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^composite);
 
+// Proxies are processed after the main cascade, to ensure that the entities they point to have already been processed.
+// For reasons known only to god, Matt Filer's Unity Level Viewer can avoid this problem without doing this.
+// We don't need to do this for aliases as they're processed after composite instanitation, so they'll exist no matter what.
+msclr::gcroot < System::Collections::Generic::List < CATHODE::Scripting::ProxyEntity ^ > ^ > proxiesToBeProcessed {};
+
 static void CascadeEntity(OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^parent, CATHODE::Scripting::Internal::Entity ^entity) {
 	switch (entity->variant) {
-		case CATHODE::Scripting::EntityVariant::FUNCTION: {
-			CATHODE::Scripting::FunctionEntity ^functionEntity = dynamic_cast< CATHODE::Scripting::FunctionEntity ^ >(entity);
-			if (functionEntity->function.IsFunctionType) {
-				// function
-				switch (functionEntity->function.AsFunctionType) {
-					case CATHODE::Scripting::FunctionType::ModelReference:
-						{
-							OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceDataValue ^modelReferenceDataValue = gcnew OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceDataValue();
-							modelReferenceDataValue->entity = functionEntity;
-							modelReferenceDataValue->transform = getManagedTransformFromEntity(functionEntity);
+		case CATHODE::Scripting::EntityVariant::FUNCTION:
+			{
+				CATHODE::Scripting::FunctionEntity ^functionEntity = dynamic_cast< CATHODE::Scripting::FunctionEntity ^ >(entity);
+				if (functionEntity->function.IsFunctionType) {
+					// function
+					switch (functionEntity->function.AsFunctionType) {
+						case CATHODE::Scripting::FunctionType::ModelReference:
+							{
+								OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceDataValue ^modelReferenceDataValue = gcnew OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceDataValue();
+								modelReferenceDataValue->entity = functionEntity;
+								modelReferenceDataValue->transform = getManagedTransformFromEntity(functionEntity);
+								if (modelReferenceDataValue->transform == nullptr)
+									modelReferenceDataValue->transform = gcnew OpenCAGELevelViewer::AllInOne::ContentManager::ManagedTransform();
 
-							modelReferenceDataValue->parent = parent;
-							parent->children->Add(modelReferenceDataValue->entity->shortGUID, modelReferenceDataValue);
+								modelReferenceDataValue->parent = parent;
+								parent->children->Add(modelReferenceDataValue->entity->shortGUID, modelReferenceDataValue);
 
-							CATHODE::Scripting::Parameter ^resourceParameter = functionEntity->GetParameter("resource");
+								CATHODE::Scripting::Parameter ^resourceParameter = functionEntity->GetParameter("resource");
 
-							System::Collections::Generic::List < System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^ > ^tempCompById = OpenCAGELevelViewer::AllInOne::ContentManager::compositesById;
+								System::Collections::Generic::List < System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^ > ^tempCompById = OpenCAGELevelViewer::AllInOne::ContentManager::compositesById;
 
-							modelReferenceDataValue->modelReferenceId = OpenCAGELevelViewer::AllInOne::ContentManager::compositesById->Count;
+								modelReferenceDataValue->modelReferenceId = OpenCAGELevelViewer::AllInOne::ContentManager::compositesById->Count;
 
-							if (!OpenCAGELevelViewer::AllInOne::ContentManager::compositesById->Contains(getEntityPathFromEntity(modelReferenceDataValue)))
+								//OpenCAGELevelViewer::AllInOne::ContentManager::
+								//if (!OpenCAGELevelViewer::AllInOne::ContentManager::compositesById->Contains(getEntityPathFromEntity(modelReferenceDataValue)))
 								OpenCAGELevelViewer::AllInOne::ContentManager::compositesById->Add(getEntityPathFromEntity(modelReferenceDataValue));
 
-							if (resourceParameter != nullptr && resourceParameter->content != nullptr && resourceParameter->content->dataType == CATHODE::Scripting::DataType::RESOURCE) {
-								CATHODE::Scripting::cResource ^resource = dynamic_cast< CATHODE::Scripting::cResource ^ >(resourceParameter->content);
-								CATHODE::Scripting::ResourceReference ^resourceRef = resource->GetResource(CATHODE::Scripting::ResourceType::RENDERABLE_INSTANCE);
+								if (resourceParameter != nullptr && resourceParameter->content != nullptr && resourceParameter->content->dataType == CATHODE::Scripting::DataType::RESOURCE) {
+									CATHODE::Scripting::cResource ^resource = dynamic_cast< CATHODE::Scripting::cResource ^ >(resourceParameter->content);
+									CATHODE::Scripting::ResourceReference ^resourceRef = resource->GetResource(CATHODE::Scripting::ResourceType::RENDERABLE_INSTANCE);
 
-								//int viableResourceRefs = 0;
+									//int viableResourceRefs = 0;
 
-								if (resourceRef != nullptr)
-									for (size_t i = 0; i < resourceRef->count; i++) {
-										CATHODE::RenderableElements::Element ^renderableElement = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Renderables->Entries[resourceRef->index + i];
+									if (resourceRef != nullptr)
+										for (size_t i = 0; i < resourceRef->count; i++) {
+											CATHODE::RenderableElements::Element ^renderableElement = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Renderables->Entries[resourceRef->index + i];
 
-										std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > cmModel = getCMMModel(renderableElement->ModelIndex);
+											std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > cmModel = getCMMModel(renderableElement->ModelIndex);
 
-										if (cmModel.has_value()) {
-											{
-												OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL modelReferenceGl;
-												modelReferenceGl.instanceId = modelReferenceDataValue->modelReferenceId;
+											if (cmModel.has_value()) {
 												{
-													std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMMaterial > cmMaterial;
-													if (cmMaterial.has_value())
-														modelReferenceGl.modelCol = getCMMaterial(renderableElement->MaterialIndex)->materialCol;
-													else
-														modelReferenceGl.modelCol = glm::fvec4(1.0f);
+													OpenCAGELevelViewer::AllInOne::ContentManager::models[cmModel->modelId].second.push_back({static_cast < uint64_t >(modelReferenceDataValue->modelReferenceId), i});
+
+
+													OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL modelReferenceGl;
+													modelReferenceGl.instanceId = modelReferenceDataValue->modelReferenceId;
+													//modelReferenceDataValue.modelId = cmModel.
+													{
+														std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMMaterial > cmMaterial = getCMMaterial(renderableElement->MaterialIndex);
+														if (cmMaterial.has_value())
+															modelReferenceGl.modelCol = cmMaterial->materialCol;
+														else
+															modelReferenceGl.modelCol = glm::fvec4(1.0f);
+													}
+													modelReferenceGl.colOffset = glm::fvec4(1.0f);
+
+													if (!OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences.contains(static_cast < uint64_t >(modelReferenceDataValue->modelReferenceId)))
+														OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences[static_cast < uint64_t >(modelReferenceDataValue->modelReferenceId)] = {modelReferenceDataValue, {}};
+
+													OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences[static_cast < uint64_t >(modelReferenceDataValue->modelReferenceId)].second.push_back(modelReferenceGl);
+
+													//__debugbreak();
 												}
-												modelReferenceGl.colOffset = glm::fvec4(1.0f);
 
-												if (!OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences.contains(cmModel->modelId))
-													OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences[cmModel->modelId] = {};
-
-												OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences[cmModel->modelId].push_back(modelReferenceGl);
-
-												//__debugbreak();
+												//viableResourceRefs++;
 											}
-
-											//viableResourceRefs++;
 										}
-									}
+								}
 							}
-							break;
-						}
+					}
+				} else {
+					// composite
+					OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^compositeDataValue = gcnew OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue();
+					compositeDataValue->entity = functionEntity;
+					compositeDataValue->composite = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Commands->GetComposite(functionEntity->function);
+
+					compositeDataValue->transform = getManagedTransformFromEntity(functionEntity);
+					if (compositeDataValue->transform == nullptr)
+						compositeDataValue->transform = gcnew OpenCAGELevelViewer::AllInOne::ContentManager::ManagedTransform();
+
+					compositeDataValue->parent = parent;
+					parent->children->Add(compositeDataValue->entity->shortGUID, compositeDataValue);
+
+					CascadeMain(compositeDataValue);
 				}
-			} else {
-				// composite
-				OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^compositeDataValue = gcnew OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue();
-				compositeDataValue->entity = functionEntity;
-				compositeDataValue->composite = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Commands->GetComposite(functionEntity->function);
-				compositeDataValue->transform = getManagedTransformFromEntity(functionEntity);
-
-				compositeDataValue->parent = parent;
-				parent->children->Add(compositeDataValue->entity->shortGUID, compositeDataValue);
-
-				CascadeMain(compositeDataValue);
+				break;
 			}
-			break;
-		}
+		case CATHODE::Scripting::EntityVariant::ALIAS:
+			{
+				CATHODE::Scripting::AliasEntity ^aliasEntity = dynamic_cast < CATHODE::Scripting::AliasEntity ^ >(entity);
+				OpenCAGELevelViewer::AllInOne::ContentManager::EntityDataValue ^entityDataValue = getEntityFromEntityPath(aliasEntity->alias, parent);
+
+				if (entityDataValue == nullptr)
+					break;
+
+				OpenCAGELevelViewer::AllInOne::ContentManager::ManagedTransform ^managedTransform = getManagedTransformFromEntity(aliasEntity);
+
+				if (managedTransform != nullptr)
+					entityDataValue->transform = managedTransform;
+
+				break;
+			}
+		case CATHODE::Scripting::EntityVariant::PROXY:
+			{
+				// Add proxy to the list to be processed later.
+				CATHODE::Scripting::ProxyEntity ^proxyEntity = dynamic_cast < CATHODE::Scripting::ProxyEntity ^ >(entity);
+				proxiesToBeProcessed->Add(proxyEntity);
+				/*CATHODE::Scripting::ProxyEntity ^proxyEntity = dynamic_cast < CATHODE::Scripting::ProxyEntity ^ >(entity);
+				OpenCAGELevelViewer::AllInOne::ContentManager::EntityDataValue ^entityDataValue = getEntityFromEntityPath(proxyEntity->proxy);
+
+				if (entityDataValue == nullptr)
+					break;
+
+				OpenCAGELevelViewer::AllInOne::ContentManager::ManagedTransform ^managedTransform = getManagedTransformFromEntity(proxyEntity);
+
+				if (managedTransform != nullptr)
+					entityDataValue->transform = managedTransform;
+
+				break;*/
+			}
 	}
 }
 
@@ -741,7 +851,7 @@ static void CascadeMain(OpenCAGELevelViewer::AllInOne::ContentManager::Composite
 			gcnew System::Func< CATHODE::Scripting::Internal::Entity ^, int, bool >(siftEntity)
 		);
 
-	for each (CATHODE::Scripting::Internal::Entity ^entity in entities) {
+	for each (CATHODE::Scripting::Internal::Entity ^ entity in entities) {
 		//std::this_thread::yield();
 		CascadeEntity(composite, entity);
 	}
@@ -764,35 +874,140 @@ static void resetGlobalVariables() {
 	}
 }
 
-static void updatePositionMatrixes() {
-	for (size_t i = 0; i < OpenCAGELevelViewer::AllInOne::ContentManager::compositesById->Count; i++) {
-		System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^entityShortGuidPath = OpenCAGELevelViewer::AllInOne::ContentManager::compositesById->ToArray()[i];
+static OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceDataValue ^getModelReferenceBackFromDataValue(const uint64_t) {
 
-		OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceDataValue ^modelReference = nullptr;
+}
 
-		glm::vec3 pos {};
-		glm::vec3 rot {};
+struct ObjectSpace {
+	glm::vec3 front {};
+	glm::vec3 right {};
+	glm::vec3 up {};
+};
 
-		{
-			OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^current = OpenCAGELevelViewer::AllInOne::ContentManager::entityDataRoot.operator OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^ ();
-			array < CATHODE::Scripting::ShortGuid > ^entityPathAsArray = entityShortGuidPath->ToArray();
+template < size_t VectorAmount, typename VectorType, glm::qualifier VectorPacked >
+constexpr static bool isGlmVecNan(const glm::vec < VectorAmount, VectorType, VectorPacked > &vec) { 
+	for (size_t i = 0; i < VectorAmount; i++) {
+		if (std::isnan(vec[i]))
+			return true;
+	}
 
-			for (size_t i = 0; i < entityPathAsArray->Length; i++) {
-				CATHODE::Scripting::ShortGuid shortGuid = entityPathAsArray[i];
-				OpenCAGELevelViewer::AllInOne::ContentManager::EntityDataValue ^entityDataValue = current->children[shortGuid];
+	return false;
+}
 
-				pos += glm::vec3(entityDataValue->transform->position.X, entityDataValue->transform->position.Y, entityDataValue->transform->position.Z);
-				rot += glm::vec3(entityDataValue->transform->rotation.X, entityDataValue->transform->rotation.Y, entityDataValue->transform->rotation.Z);
+static ObjectSpace getObjectSpaceFromRotation(glm::vec3 rotation) {
+	ObjectSpace objectSpace {};
+	objectSpace.front = glm::normalize(glm::cross(glm::vec3(0.0f, 0.0f, -1.0f), rotation));
+	if (isGlmVecNan(objectSpace.front))
+		objectSpace.front = glm::vec3(0.0f, 0.0f, 1.0f);
 
-				if (i == entityPathAsArray->Length - 1)
-					modelReference = dynamic_cast < OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceDataValue ^ >(entityDataValue);
-				else
-					current = dynamic_cast < OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^ >(entityDataValue);
-			}
+	glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+
+	objectSpace.right = glm::normalize(glm::cross(up, objectSpace.front));
+	if (isGlmVecNan(objectSpace.right))
+		objectSpace.right = glm::vec3(1.0f, 0.0f, 0.0f);
+
+	objectSpace.up = glm::cross(objectSpace.front, objectSpace.right);
+
+	return objectSpace;
+	
+	/*
+	glm::vec3 front;
+		front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+		front.y = sin(glm::radians(pitch));
+		front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+		cameraFront = glm::normalize(front);
+
+		cameraRight = glm::normalize(glm::cross(up, cameraFront));
+		cameraUp = glm::cross(cameraFront, cameraRight);
+	*/
+}
+
+static void updateTransformWithRespectToExistingTransform(OpenCAGELevelViewer::AllInOne::ContentManager::Transform &transformInput, const OpenCAGELevelViewer::AllInOne::ContentManager::ManagedTransform ^managedTransform) {
+	OpenCAGELevelViewer::AllInOne::ContentManager::Transform unmanagedTransform {managedTransform};
+
+	//if (transformInput.position != glm::vec3(0.0f))
+		//__debugbreak();
+
+	const ObjectSpace objectSpace = getObjectSpaceFromRotation(transformInput.rotation);
+	transformInput.position += objectSpace.front * -unmanagedTransform.position.z;
+	transformInput.position += objectSpace.up * unmanagedTransform.position.y;
+	transformInput.position += objectSpace.right * unmanagedTransform.position.x;
+
+	/*
+
+	;{
+		glm::vec3 front;
+		front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+		front.y = sin(glm::radians(pitch));
+		front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+		cameraFront = glm::normalize(front);
+	}
+
+	cameraPos += (deltaTime * 5.0f) * cameraFront * cameraSpeedZ;
+	cameraPos += (deltaTime * 5.0f) * cameraUp * cameraSpeedY;
+	cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * (deltaTime * 5.0f) * cameraSpeedX;*/
+
+	transformInput.rotation += unmanagedTransform.rotation;
+}
+
+static void updateMatrix(glm::mat4 &matrixInput, const OpenCAGELevelViewer::AllInOne::ContentManager::ManagedTransform ^managedTransform) {
+	OpenCAGELevelViewer::AllInOne::ContentManager::Transform transform {managedTransform};
+
+	matrixInput = glm::translate(matrixInput, transform.position);
+	matrixInput = glm::rotate(matrixInput, glm::radians(transform.rotation.x), glm::vec3(1, 0, 0));
+	matrixInput = glm::rotate(matrixInput, glm::radians(transform.rotation.y), glm::vec3(0, 1, 0));
+	matrixInput = glm::rotate(matrixInput, glm::radians(transform.rotation.z), glm::vec3(0, 0, 1));
+}
+
+static glm::mat4 performPositionCascade(System::Collections::Generic::IList < CATHODE::Scripting::ShortGuid > ^entityPath) {
+	OpenCAGELevelViewer::AllInOne::ContentManager::Transform transform {};
+	glm::mat4 finalMatrix(1.0f);
+
+	finalMatrix = glm::scale(finalMatrix, glm::fvec3(-1, 1, 1));
+
+	{
+		OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^current = OpenCAGELevelViewer::AllInOne::ContentManager::entityDataRoot.operator OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^ ();
+
+		for (size_t i = 0; i < entityPath->Count; i++) {
+			CATHODE::Scripting::ShortGuid shortGuid = entityPath[i];
+			OpenCAGELevelViewer::AllInOne::ContentManager::EntityDataValue ^entityDataValue = current->children[shortGuid];
+
+			//updateTransformWithRespectToExistingTransform(transform, entityDataValue->transform);
+			updateMatrix(finalMatrix, entityDataValue->transform);
+
+			if (i == entityPath->Count - 1)
+				break;
+			else
+				current = dynamic_cast < OpenCAGELevelViewer::AllInOne::ContentManager::CompositeDataValue ^ >(entityDataValue);
 		}
+	}
 
-		assert(modelReference != nullptr);
-		[[assume(modelReference != nullptr)]];
+	{
+
+
+		//OpenCAGELevelViewer::AllInOne::ContentManager::Transform unmanagedTransform {};
+
+		
+
+		return finalMatrix;
+	}
+}
+
+static void updatePositionMatrixes() {
+	//auto test = OpenCAGELevelViewer::AllInOne::ContentManager::compositesById.operator->();
+
+	for (auto & modelReference : OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences) {
+		//::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^entityShortGuidPath = OpenCAGELevelViewer::AllInOne::ContentManager::compositesById->ToArray()[i];
+
+		//OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceDataValue ^modelReference = nullptr;
+
+		//glm::vec3 pos {};
+		//glm::vec3 rot {};
+
+		glm::fmat4 finalMatrix = performPositionCascade(getEntityPathFromEntity(modelReference.second.first));
+
+		//assert(modelReference != nullptr);
+		//[[assume(modelReference != nullptr)]];
 
 		//glm::mat4 newMat4 = glm::mat4(1);
 
@@ -803,14 +1018,13 @@ static void updatePositionMatrixes() {
 		//	newMat4 = glm::rotate(newMat4, glm::radians(1.0f), rot);
 
 		//size_t modelReferenceId = modelReference->modelReferenceId;
-		
+
 		//std::vector < OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL > &currentModelReferences = modelReferences[modelReferenceId];
 
-		for (OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL &currentModelRefernceGl : OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences[modelReference->modelReferenceId]) {
+		for (OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL &currentModelRefernceGl : modelReference.second.second) {
 			//newMat4[0]
 			//if (newMat4 != glm::mat4(1))
-			currentModelRefernceGl.worldPosition = pos;
-			currentModelRefernceGl.worldRotation = rot;
+			currentModelRefernceGl.worldMatrix = finalMatrix;
 		}
 
 		//modelReference->modelReferenceId
@@ -881,17 +1095,17 @@ void OpenCAGELevelViewer::AllInOne::ContentManager::threadMain(std::atomic_flag 
 				OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Commands = gcnew CATHODE::Commands(gcnew String((levelPath + "WORLD/COMMANDS.PAK").c_str()));
 				OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->ModelsPAK = gcnew CATHODE::Models(gcnew String((levelPath + "RENDERABLE/LEVEL_MODELS.PAK").c_str()));
 				OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->ModelsMTL = gcnew CATHODE::Materials(gcnew String((levelPath + "RENDERABLE/LEVEL_MODELS.MTL").c_str()));
-				OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Shaders = gcnew CATHODE::Shaders(gcnew String((levelPath + "RENDERABLE/LEVEL_SHADERS_DX11.PAK").c_str()));
+				OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Shaders = gcnew CATHODE::LEGACY::ShadersPAK(gcnew String((levelPath + "RENDERABLE/LEVEL_SHADERS_DX11.PAK").c_str()));
 				//OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Textures = gcnew CATHODE::Textures(gcnew String((levelPath + "RENDERABLE/LEVEL_TEXTURES.PAK").c_str()));
 				OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Renderables = gcnew CATHODE::RenderableElements(gcnew String((levelPath + "WORLD/REDS.BIN").c_str()));
 			}
 		}
 
 		//LevelContent ^test = levelContentInstance.operator LevelContent ^ ();
-		
+
 		//std::cout << &test << std::endl;
 
-		if (compositeDirty && !compositeGuid.IsInvalid && OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance.operator OpenCAGELevelViewer::AllInOne::ContentManager::LevelContent ^() != nullptr) {
+		if (compositeDirty && !compositeGuid.IsInvalid && OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance.operator OpenCAGELevelViewer::AllInOne::ContentManager::LevelContent ^ () != nullptr) {
 			compositeDirty = false;
 
 			{
@@ -908,22 +1122,37 @@ void OpenCAGELevelViewer::AllInOne::ContentManager::threadMain(std::atomic_flag 
 
 				entityDataRoot = gcnew CompositeDataValue { };
 
-				{
-					GC::Collect();
-					GC::WaitForPendingFinalizers();
-					GC::Collect();
-					GC::WaitForPendingFinalizers();
-				}
+				System::GC::Collect();
 
 				entityDataRoot->composite = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Commands->GetComposite(compositeGuid);
 
-				std::cout << "Cascade" << std::endl;
+				//std::cout << "Cascade" << std::endl;
 
 				//std::this_thread::yield();
+				proxiesToBeProcessed = gcnew System::Collections::Generic::List < CATHODE::Scripting::ProxyEntity ^ >();
+
 				CascadeMain(entityDataRoot);
+
+				// Process all the proxies here. See definition of "proxiesToBeProcessed".
+				for (size_t i = 0; i < proxiesToBeProcessed->Count; i++) {
+					CATHODE::Scripting::ProxyEntity ^proxyEntity = proxiesToBeProcessed.operator->()[i];
+					OpenCAGELevelViewer::AllInOne::ContentManager::EntityDataValue ^entityDataValue = getEntityFromEntityPath(proxyEntity->proxy);
+
+					if (entityDataValue == nullptr)
+						break;
+
+					OpenCAGELevelViewer::AllInOne::ContentManager::ManagedTransform ^managedTransform = getManagedTransformFromEntity(proxyEntity);
+
+					if (managedTransform != nullptr)
+						entityDataValue->transform = managedTransform;
+				}
+
+				// gc clean up
+				proxiesToBeProcessed = nullptr;
 
 				//std::this_thread::yield();
 				updatePositionMatrixes();
+				System::GC::Collect();
 
 				{
 					CMStatus localCmStatus = cmStatus.load();
@@ -931,13 +1160,13 @@ void OpenCAGELevelViewer::AllInOne::ContentManager::threadMain(std::atomic_flag 
 					cmStatus.store(localCmStatus);
 				}
 
-				/*{
+				{
 					CompositeDataValue ^dataValue = entityDataRoot;
 
 					std::cout << "professional do nothing" << std::endl;
 				}
 
-				std::cout << "test" << std::endl;*/
+				std::cout << "test" << std::endl;
 			}
 
 			//CATHODE::Scripting::Composite ^currentComposite = levelContentInstance->Commands->GetComposite(currentCompositeGuid);

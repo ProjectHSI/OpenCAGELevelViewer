@@ -9,8 +9,10 @@
 #include <glm/fwd.hpp>
 #include <map>
 #include <msclr/gcroot.h>
+#include <msclr/auto_gcroot.h>
 #include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace OpenCAGELevelViewer {
@@ -54,23 +56,30 @@ namespace OpenCAGELevelViewer {
 		#pragma pack(1)
 			struct ModelReferenceGL {
 				uint32_t instanceId = 0;
-				glm::fvec3 worldPosition {};
-				glm::fvec3 worldRotation {};
+				glm::fmat4 worldMatrix {};
 				glm::fvec4 modelCol {};
 				glm::fvec4 colOffset {};
 			};
 		#pragma pack()
 
-			typedef glm::vec3 Vector3;
-			typedef struct {
-				Vector3 position {};
-				Vector3 rotation {};
-			} Transform;
-
 			typedef System::Numerics::Vector3 ManagedVector3;
 			ref struct ManagedTransform {
 				ManagedVector3 position {};
 				ManagedVector3 rotation {};
+			};
+
+			typedef glm::vec3 Vector3;
+			struct Transform {
+				Vector3 position {};
+				Vector3 rotation {};
+
+				Transform() = default;
+
+				Transform(const ManagedTransform ^managedTransform)
+				{
+					position = {managedTransform->position.X, managedTransform->position.Y, managedTransform->position.Z};
+					rotation = {managedTransform->rotation.X, managedTransform->rotation.Y, managedTransform->rotation.Z};
+				}
 			};
 
 			typedef ref struct EntityDataValue;
@@ -117,9 +126,9 @@ namespace OpenCAGELevelViewer {
 			extern std::recursive_mutex cmMutex;
 
 			extern msclr::gcroot < System::Collections::Generic::List < System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^ > ^ > compositesById;
-			extern std::map < uint64_t, CMModel > models;
+			extern std::map < uint64_t, std::pair < CMModel, std::vector < std::pair < uint64_t, size_t > > > > models;
 			extern std::map < uint64_t, CMMaterial > materials;
-			extern std::map < uint64_t, std::vector < ModelReferenceGL > > modelReferences;
+			extern std::map < uint64_t, std::pair < msclr::gcroot < ModelReferenceDataValue ^ >, std::vector < ModelReferenceGL > > > modelReferences;
 			extern msclr::gcroot < CompositeDataValue ^ > entityDataRoot;
 			extern msclr::gcroot < LevelContent ^ > levelContentInstance;
 
