@@ -173,10 +173,10 @@ void OpenCAGELevelViewer::_3DView::updateCamera(const float x, const float y, co
 	{
 		//float targetCurrentSpeed = speed;
 
-		glm::vec3 targetCameraSpeed(x, -y, z);
+		glm::vec3 targetCameraSpeed(x, y, z);
 
-		std::cout << x << " " << -y << " " << z << std::endl;
-		std::cout << targetCameraSpeed.x << " " << targetCameraSpeed.y << " " << targetCameraSpeed.z << std::endl;
+		//std::cout << x << " " << -y << " " << z << std::endl;
+		//std::cout << targetCameraSpeed.x << " " << targetCameraSpeed.y << " " << targetCameraSpeed.z << std::endl;
 
 		if constexpr (shouldNormalise)
 			if (targetCameraSpeed != glm::vec3(0.0f)) {

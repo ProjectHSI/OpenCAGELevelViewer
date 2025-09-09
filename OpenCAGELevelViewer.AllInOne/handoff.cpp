@@ -275,8 +275,21 @@ static void renderCommandsContentWindow() {
 
 #pragma managed(push, on)
 static void debugTestDelegate(const int64_t selectedInstanceId) {
-	auto compositeTest = OpenCAGELevelViewer::AllInOne::ContentManager::compositesById.operator->()[static_cast < uint32_t >(selectedInstanceId)];
+	System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^compositeTest = OpenCAGELevelViewer::AllInOne::ContentManager::compositesById.operator->()[static_cast < uint32_t >(selectedInstanceId)];
 	auto debug = OpenCAGELevelViewer::AllInOne::ContentManager::entityDataRoot.operator->();
+
+	std::stringstream compositePathString;
+
+	for (size_t i = 0; i < compositeTest->Count; i++) {
+		CATHODE::Scripting::ShortGuid shortGuid = compositeTest[i];
+
+		compositePathString << MarshalCliString(shortGuid.ToByteString());
+
+		if (i != compositeTest->Count - 1)
+			compositePathString << " -> ";
+	}
+
+	SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Composite", compositePathString.str().c_str(), sdlWindow);
 
 	std::cout << compositeTest->Count << std::endl;
 }
@@ -404,11 +417,19 @@ int handoff(char **argv, int argc) {
 			//was3dViewSelectRequested = false;
 		//}
 
+		static bool isForwardPressed = false;
+		static bool isBackwardPressed = false;
+		static bool isLeftPressed = false;
+		static bool isRightPressed = false;
+		static bool isUpPressed = false;
+		static bool isDownPressed = false;
+
 		float dYaw = 0;
 		float dPitch = 0;
 
 		float dFov = 0;
 
+		assert(dX >= -2 && dY <= 2 && dY >= -2 && dY <= 2 && dZ >= -2 && dZ <= 2);
 		
 		SDL_Event event;
 
@@ -447,24 +468,30 @@ int handoff(char **argv, int argc) {
 								break;
 
 							case SDLK_E:
-								dY += 1;
+								isUpPressed = true;
+								dY = isUpPressed - isDownPressed;
 								break;
 							case SDLK_Q:
-								dY -= 1;
+								isDownPressed = true;
+								dY = isUpPressed - isDownPressed;
 								break;
 
 							case SDLK_W:
-								dZ += 1;
+								isForwardPressed = true;
+								dZ = isForwardPressed - isBackwardPressed;
 								break;
 							case SDLK_S:
-								dZ -= 1;
+								isBackwardPressed = true;
+								dZ = isForwardPressed - isBackwardPressed;
 								break;
 
 							case SDLK_D:
-								dX += 1;
+								isRightPressed = true;
+								dX = isRightPressed - isLeftPressed;
 								break;
 							case SDLK_A:
-								dZ -= 1;
+								isLeftPressed = true;
+								dX = isRightPressed - isLeftPressed;
 								break;
 
 							case SDLK_LSHIFT:
@@ -489,24 +516,30 @@ int handoff(char **argv, int argc) {
 					if (_3dViewLockInput) {
 						switch (event.key.key) {
 							case SDLK_E:
-								dY -= 1;
+								isUpPressed = false;
+								dY = isUpPressed - isDownPressed;
 								break;
 							case SDLK_Q:
-								dY += 1;
+								isDownPressed = false;
+								dY = isUpPressed - isDownPressed;
 								break;
 
 							case SDLK_W:
-								dZ -= 1;
+								isForwardPressed = false;
+								dZ = isForwardPressed - isBackwardPressed;
 								break;
 							case SDLK_S:
-								dZ += 1;
+								isBackwardPressed = false;
+								dZ = isForwardPressed - isBackwardPressed;
 								break;
 
 							case SDLK_D:
-								dX -= 1;
+								isRightPressed = false;
+								dX = isRightPressed - isLeftPressed;
 								break;
 							case SDLK_A:
-								dZ += 1;
+								isLeftPressed = false;
+								dX = isRightPressed - isLeftPressed;
 								break;
 
 							case SDLK_LSHIFT:
@@ -524,6 +557,7 @@ int handoff(char **argv, int argc) {
 							was3dViewSelectRequested = true;
 						}
 					}
+					break;
 
 				case SDL_EVENT_GAMEPAD_AXIS_MOTION:
 					switch (event.gaxis.axis) {
