@@ -13,6 +13,12 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Source Files\ContentManager">
+      <UniqueIdentifier>{28a12b76-2085-41e7-b5da-bec1c95162d5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\ContentManager">
+      <UniqueIdentifier>{1f6a0249-e76d-4d64-b7be-587624cdcb4c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="framework.h">
@@ -44,6 +50,9 @@
     </ClInclude>
     <ClInclude Include="Configuration.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ContentManager.New.h">
+      <Filter>Header Files\ContentManager</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -77,6 +86,9 @@
     <ClCompile Include="Configuration.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ContentManager.New.cpp">
+      <Filter>Source Files\ContentManager</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="vcpkg.json" />
@@ -107,6 +119,12 @@
       <Filter>Resource Files</Filter>
     </None>
     <None Include="AxisPlaneFragmentShader.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="IntegerSelectPassthrough.vert">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="IntegerSelectPassthrough.frag">
       <Filter>Resource Files</Filter>
     </None>
   </ItemGroup>

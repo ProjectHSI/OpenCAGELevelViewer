@@ -10,6 +10,7 @@
 namespace OpenCAGELevelViewer {
 	namespace _3DView {
 		unsigned int getFbo(void);
+		unsigned int getSelectFbo(void);
 
 		extern float fov;
 		extern float mouseSensitivity;
@@ -38,7 +39,12 @@ namespace OpenCAGELevelViewer {
 		};*/
 
 		//void updateCamera(int32_t x, int32_t y);
-		void updateCamera(signed char x, signed char y, signed char z, signed char roll, int32_t mouseX, int32_t mouseY, float scrollY, bool isShiftPressed, bool isCtrlPressed, float deltaTime);
+		void updateCamera(const signed char x, const signed char y, const signed char z, const signed char roll, const int32_t mouseX, const int32_t mouseY, const float scrollY, const unsigned char isShiftPressed, const unsigned char isCtrlPressed, const float deltaTime);
+
+		void markForSelect(ImVec2 coordinates);
+
+		void setInstanceIdSelected(const int64_t selected);
+		const int64_t getUserSelectedInstanceId(const ImVec2 windowSize, const ImVec2 selectedCoordinates = ImVec2(0.5f, 0.5f));
 		
 		//typedef std::variant < OpenCAGELevelViewer::ContentManager::UnmanagedComposite, OpenCAGELevelViewer::ContentManager::UnmanagedModelReference > UsuableUnmanagedObjects;
 

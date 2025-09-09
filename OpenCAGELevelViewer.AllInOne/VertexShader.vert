@@ -1,12 +1,15 @@
-#version 330 core
+#version 430 core
 layout (location = 0) in vec3 vPos;
 layout (location = 1) in vec4 vCol;
 layout (location = 2) in uint iId;
-layout (location = 3) in mat4 iMat;
-layout (location = 7) in vec4 iModelCol;
-layout (location = 8) in vec4 iColOffset;
+layout (location = 3) in uint iIsRenderable;
+layout (location = 4) in mat4 iMat;
+layout (location = 8) in vec4 iModelCol;
+layout (location = 9) in vec4 iColOffset;
 
-out vec4 colour;
+layout (location = 0) out vec4 colour;
+layout (location = 1) flat out uint instanceId;
+layout (location = 2) flat out uint isRenderable;
 
 const float PI = 3.1415926535897932384626433832795;
 const float PI_180 = PI / 180;
@@ -93,8 +96,10 @@ void main()
 			break;
 		case 2:
 			{
-				uint instanceColourUint = iId;
-				coreColour = vec4(((instanceColourUint >> 16) & uint(0xFF)) / 255.0f, ((instanceColourUint >> 8) & uint(0xFF)) / 255.0f, ((instanceColourUint >> 0) & uint(0xFF)) / 255.0f, 1.0);
+				//uint instanceColourUint = truncate(hash32(iId));
+				//coreColour = vec4(((instanceColourUint >> 16) & uint(0xFF)) / 255.0f, ((instanceColourUint >> 8) & uint(0xFF)) / 255.0f, ((instanceColourUint >> 0) & uint(0xFF)) / 255.0f, 1.0);
+
+				coreColour = vec4(iId / 4294967295.0f, 0.0, 0.0, 1.0);
 			}
 			break;
 		case 3:
@@ -106,6 +111,8 @@ void main()
 	}
 
 	colour = coreColour * iColOffset;
+	instanceId = iId;
+	isRenderable = iIsRenderable;
 	
 	//if (coreColour == 0) {
 		//coreColour = vec4(1.0, 0.0, 0.0, 1.0);

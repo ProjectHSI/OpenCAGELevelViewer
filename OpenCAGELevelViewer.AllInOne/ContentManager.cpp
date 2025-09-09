@@ -747,28 +747,38 @@ static void CascadeEntity(OpenCAGELevelViewer::AllInOne::ContentManager::Composi
 											CATHODE::RenderableElements::Element ^renderableElement = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->Renderables->Entries[resourceRef->index + i];
 
 											std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > cmModel = getCMMModel(renderableElement->ModelIndex);
+											std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMMaterial > cmMaterial = getCMMaterial(renderableElement->MaterialIndex);
 
-											if (cmModel.has_value()) {
+											if (cmModel.has_value()/* && (cmMaterial.has_value() && cmMaterial->renderable)*/) {
 												{
-													OpenCAGELevelViewer::AllInOne::ContentManager::models[cmModel->modelId].second.push_back({static_cast < uint64_t >(modelReferenceDataValue->modelReferenceId), i});
 
+													//assert(modelReferenceGl.instanceId <= 20000);
 
+													//modelReferenceDataValue.modelId = cmModel.
 													OpenCAGELevelViewer::AllInOne::ContentManager::ModelReferenceGL modelReferenceGl;
 													modelReferenceGl.instanceId = modelReferenceDataValue->modelReferenceId;
-													//modelReferenceDataValue.modelId = cmModel.
-													{
-														std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMMaterial > cmMaterial = getCMMaterial(renderableElement->MaterialIndex);
-														if (cmMaterial.has_value())
-															modelReferenceGl.modelCol = cmMaterial->materialCol;
-														else
-															modelReferenceGl.modelCol = glm::fvec4(1.0f);
-													}
+
+													//std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMMaterial > cmMaterial = getCMMaterial(renderableElement->MaterialIndex);
+													if (cmMaterial.has_value()) {
+														modelReferenceGl.modelCol = cmMaterial->materialCol;
+													} else
+														modelReferenceGl.modelCol = glm::fvec4(1.0f);
+
+													modelReferenceGl.isRenderable = cmMaterial->renderable;
+
 													modelReferenceGl.colOffset = glm::fvec4(1.0f);
 
-													if (!OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences.contains(static_cast < uint64_t >(modelReferenceDataValue->modelReferenceId)))
-														OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences[static_cast < uint64_t >(modelReferenceDataValue->modelReferenceId)] = {modelReferenceDataValue, {}};
+													//
 
-													OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences[static_cast < uint64_t >(modelReferenceDataValue->modelReferenceId)].second.push_back(modelReferenceGl);
+														if (!OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences.contains(static_cast < uint64_t >(modelReferenceDataValue->modelReferenceId)))
+															OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences[static_cast < uint64_t >(modelReferenceDataValue->modelReferenceId)] = {modelReferenceDataValue, {}};
+
+													//if (cmMaterial->renderable) {
+
+														OpenCAGELevelViewer::AllInOne::ContentManager::models[cmModel->modelId].second.push_back({static_cast < uint64_t >(modelReferenceDataValue->modelReferenceId), i});
+														OpenCAGELevelViewer::AllInOne::ContentManager::modelReferences[static_cast < uint64_t >(modelReferenceDataValue->modelReferenceId)].second.push_back(modelReferenceGl);
+													  
+													//}
 
 													//__debugbreak();
 												}
@@ -777,6 +787,7 @@ static void CascadeEntity(OpenCAGELevelViewer::AllInOne::ContentManager::Composi
 											}
 										}
 								}
+								break;
 							}
 					}
 				} else {
@@ -954,8 +965,8 @@ static void updateMatrix(glm::mat4 &matrixInput, const OpenCAGELevelViewer::AllI
 	OpenCAGELevelViewer::AllInOne::ContentManager::Transform transform {managedTransform};
 
 	matrixInput = glm::translate(matrixInput, transform.position);
-	matrixInput = glm::rotate(matrixInput, glm::radians(transform.rotation.x), glm::vec3(1, 0, 0));
 	matrixInput = glm::rotate(matrixInput, glm::radians(transform.rotation.y), glm::vec3(0, 1, 0));
+	matrixInput = glm::rotate(matrixInput, glm::radians(transform.rotation.x), glm::vec3(1, 0, 0));
 	matrixInput = glm::rotate(matrixInput, glm::radians(transform.rotation.z), glm::vec3(0, 0, 1));
 }
 

@@ -272,6 +272,15 @@ static void renderCommandsContentWindow() {
 #pragma managed(pop)
 #pragma endregion
 
+#pragma managed(push, on)
+static void debugTestDelegate(const int64_t selectedInstanceId) {
+	auto compositeTest = OpenCAGELevelViewer::AllInOne::ContentManager::compositesById.operator->()[static_cast < uint32_t >(selectedInstanceId)];
+	auto debug = OpenCAGELevelViewer::AllInOne::ContentManager::entityDataRoot.operator->();
+
+	std::cout << compositeTest->Count << std::endl;
+}
+#pragma managed(pop)
+
 #pragma managed(push, off)
 int handoff(char **argv, int argc) {
 	// force c++/cli to initalise here.
@@ -383,6 +392,16 @@ int handoff(char **argv, int argc) {
 		static bool isShiftPressed = false;
 		static bool isCtrlPressed = false;
 
+		bool was3dViewSelectRequested = false;
+		//static bool was3dViewSelectRequestedLastFrame = false;
+
+		//was3dViewSelectRequestedLastFrame = was3dViewSelectRequested;
+
+		//if (was3dViewSelectRequested) {
+			//std::this_thread::sleep_for(16ms);
+			//was3dViewSelectRequested = false;
+		//}
+
 		int32_t xMouse = 0;
 		int32_t yMouse = 0;
 
@@ -482,6 +501,12 @@ int handoff(char **argv, int argc) {
 						}
 					}
 					break;
+				case SDL_EVENT_MOUSE_BUTTON_DOWN:
+					if (_3dViewLockInput) {
+						if (event.button.button == SDL_BUTTON_LEFT) {
+							was3dViewSelectRequested = true;
+						}
+					}
 			}
 
 			if (event.type == SDL_EVENT_QUIT)
@@ -1049,24 +1074,38 @@ int handoff(char **argv, int argc) {
 
 						ImVec2 currentCursor = ImGui::GetCursorPos();
 
-						OpenCAGELevelViewer::_3DView::Render(wsize);
-
 						//glBindTexture(GL_TEXTURE_2D, 0);
 
-						ImGui::Image(( ImTextureID ) OpenCAGELevelViewer::_3DView::getFbo(), wsize, ImVec2(0, 1), ImVec2(1, 0));
+						ImVec2 clickPos = ImVec2(0.5f, 0.5f);
+						if (ImGui::InvisibleButton("3DViewRenderPhantom", wsize, ImGuiButtonFlags_::ImGuiButtonFlags_MouseButtonLeft)) {
+							if (ImGui::IsKeyDown(ImGuiKey::ImGuiMod_Ctrl)) {
+								clickPos = (ImGui::GetMousePos() - ImGui::GetItemRectMin()) / ImGui::GetItemRectSize();
+								was3dViewSelectRequested = true;
+							} else {
+								_3dViewLockInput = true;
+
+								ImGuiIO &io = ImGui::GetIO(); ( void ) io;
+								io.ConfigFlags &= (0xFFFFFFFF ^ ImGuiConfigFlags_NavEnableKeyboard);
+								io.ConfigFlags &= (0xFFFFFFFF ^ ImGuiConfigFlags_NavEnableGamepad);
+								io.ConfigFlags |= ImGuiConfigFlags_NoMouse;
+
+								SDL_SetWindowRelativeMouseMode(sdlWindow, true);
+							}
+						}
 						ImGui::SetCursorPos(currentCursor);
 						ImGui::SetNextItemAllowOverlap();
 
-						if (ImGui::InvisibleButton("3DViewRenderPhantom", wsize, ImGuiButtonFlags_::ImGuiButtonFlags_MouseButtonLeft)) {
-							_3dViewLockInput = true;
+						OpenCAGELevelViewer::_3DView::Render(wsize);
 
-							ImGuiIO &io = ImGui::GetIO(); ( void ) io;
-							io.ConfigFlags &= (0xFFFFFFFF ^ ImGuiConfigFlags_NavEnableKeyboard);
-							io.ConfigFlags &= (0xFFFFFFFF ^ ImGuiConfigFlags_NavEnableGamepad);
-							io.ConfigFlags |= ImGuiConfigFlags_NoMouse;
-
-							SDL_SetWindowRelativeMouseMode(sdlWindow, true);
+						if (was3dViewSelectRequested) {
+							const int64_t selectedInstanceId = OpenCAGELevelViewer::_3DView::getUserSelectedInstanceId(wsize, clickPos);
+							if (selectedInstanceId != -1) {
+								debugTestDelegate(selectedInstanceId);
+								//auto  debug.first.operator->() << std::endl;
+							}
 						}
+
+						ImGui::Image(( ImTextureID ) OpenCAGELevelViewer::_3DView::getFbo(), wsize, ImVec2(0, 1), ImVec2(1, 0));
 					}
 					ImGui::EndChild();
 				//}

@@ -56,6 +56,8 @@ namespace OpenCAGELevelViewer {
 		#pragma pack(1)
 			struct ModelReferenceGL {
 				uint32_t instanceId = 0;
+				uint32_t isRenderable = 1; // i would filter this out in the ContentManager, but that messes up the positioning, so...
+				                           // additionally opengl doesn't allow bools in vertex attributes.
 				glm::fmat4 worldMatrix {};
 				glm::fvec4 modelCol {};
 				glm::fvec4 colOffset {};

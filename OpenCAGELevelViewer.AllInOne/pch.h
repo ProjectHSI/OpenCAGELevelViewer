@@ -50,6 +50,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#define IMGUI_DEFINE_MATH_OPERATORS
 
 namespace OpenCAGELevelViewer::AllInOne {
 #pragma managed(push, off)
