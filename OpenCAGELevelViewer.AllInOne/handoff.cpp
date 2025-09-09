@@ -20,6 +20,7 @@
 
 #include "3DView.h"
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <map>
@@ -382,15 +383,16 @@ int handoff(char **argv, int argc) {
 	auto currentFrameTime = lastFrameTime; // For delta time calculations
 
 	while (!userRequestedExit) {
-		static bool isForwardPressed = false;
-		static bool isLeftPressed = false;
-		static bool isRightPressed = false;
-		static bool isBackwardPressed = false;
-		static bool isUpPressed = false;
-		static bool isDownPressed = false;
+		static float dX = 0;
+		static float dY = 0;
+		static float dZ = 0;
+		static float speed = 1;
+		static bool smooth = false;
+		//static bool isUpPressed = false;
+		//static bool isDownPressed = false;
 
-		static bool isShiftPressed = false;
-		static bool isCtrlPressed = false;
+		//static bool isShiftPressed = false;
+		//static bool isCtrlPressed = false;
 
 		bool was3dViewSelectRequested = false;
 		//static bool was3dViewSelectRequestedLastFrame = false;
@@ -402,10 +404,10 @@ int handoff(char **argv, int argc) {
 			//was3dViewSelectRequested = false;
 		//}
 
-		int32_t xMouse = 0;
-		int32_t yMouse = 0;
+		float dYaw = 0;
+		float dPitch = 0;
 
-		float yScroll = 0;
+		float dFov = 0;
 
 		
 		SDL_Event event;
@@ -419,13 +421,13 @@ int handoff(char **argv, int argc) {
 					break;
 				case SDL_EVENT_MOUSE_MOTION:
 					if (_3dViewLockInput) {
-						xMouse += event.motion.xrel;
-						yMouse += event.motion.yrel;
+						dYaw += event.motion.xrel;
+						dPitch += event.motion.yrel;
 					}
 					break;
 				case SDL_EVENT_MOUSE_WHEEL:
 					if (_3dViewLockInput) {
-						yScroll += event.wheel.y;
+						dFov += event.wheel.y;
 					}
 					break;
 				case SDL_EVENT_KEY_DOWN:
@@ -444,29 +446,41 @@ int handoff(char **argv, int argc) {
 								}
 								break;
 
-							case SDLK_Q:
-								isUpPressed = true;
-								break;
 							case SDLK_E:
-								isDownPressed = true;
+								dY += 1;
 								break;
+							case SDLK_Q:
+								dY -= 1;
+								break;
+
 							case SDLK_W:
-								isForwardPressed = true;
-								break;
-							case SDLK_A:
-								isLeftPressed = true;
-								break;
-							case SDLK_D:
-								isRightPressed = true;
+								dZ += 1;
 								break;
 							case SDLK_S:
-								isBackwardPressed = true;
+								dZ -= 1;
 								break;
+
+							case SDLK_D:
+								dX += 1;
+								break;
+							case SDLK_A:
+								dZ -= 1;
+								break;
+
 							case SDLK_LSHIFT:
-								isShiftPressed = true;
+								speed = 2;
 								break;
 							case SDLK_LCTRL:
-								isCtrlPressed = true;
+								smooth = true;
+								break;
+
+							case SDLK_RALT:
+								// panic button
+								dX = 0;
+								dY = 0;
+								dZ = 0;
+								speed = 1;
+								smooth = false;
 								break;
 						}
 					}
@@ -474,29 +488,32 @@ int handoff(char **argv, int argc) {
 				case SDL_EVENT_KEY_UP:
 					if (_3dViewLockInput) {
 						switch (event.key.key) {
-							case SDLK_Q:
-								isUpPressed = false;
-								break;
 							case SDLK_E:
-								isDownPressed = false;
+								dY -= 1;
 								break;
+							case SDLK_Q:
+								dY += 1;
+								break;
+
 							case SDLK_W:
-								isForwardPressed = false;
-								break;
-							case SDLK_A:
-								isLeftPressed = false;
-								break;
-							case SDLK_D:
-								isRightPressed = false;
+								dZ -= 1;
 								break;
 							case SDLK_S:
-								isBackwardPressed = false;
+								dZ += 1;
 								break;
+
+							case SDLK_D:
+								dX -= 1;
+								break;
+							case SDLK_A:
+								dZ += 1;
+								break;
+
 							case SDLK_LSHIFT:
-								isShiftPressed = false;
+								speed = 1;
 								break;
 							case SDLK_LCTRL:
-								isCtrlPressed = false;
+								smooth = false;
 								break;
 						}
 					}
@@ -507,6 +524,72 @@ int handoff(char **argv, int argc) {
 							was3dViewSelectRequested = true;
 						}
 					}
+
+				case SDL_EVENT_GAMEPAD_AXIS_MOTION:
+					switch (event.gaxis.axis) {
+						case SDL_GamepadAxis::SDL_GAMEPAD_AXIS_LEFTX:
+							if (event.gaxis.value < 0) {
+								// negative
+								dX = event.gaxis.value / static_cast < float >(std::abs(SDL_JOYSTICK_AXIS_MIN));
+							} else if (event.gaxis.value > 0) {
+								// positive
+								dX = event.gaxis.value / static_cast < float >(SDL_JOYSTICK_AXIS_MAX);
+							} else {
+								// exactly 0
+								dX = 0;
+							}
+							break;
+						case SDL_GamepadAxis::SDL_GAMEPAD_AXIS_LEFTY:
+							if (event.gaxis.value < 0) {
+								// negative
+								dZ = event.gaxis.value / static_cast < float >(std::abs(SDL_JOYSTICK_AXIS_MIN));
+							} else if (event.gaxis.value > 0) {
+								// positive
+								dZ = event.gaxis.value / static_cast < float >(SDL_JOYSTICK_AXIS_MAX);
+							} else {
+								// exactly 0
+								dZ = 0;
+							}
+							break;
+
+						case SDL_GamepadAxis::SDL_GAMEPAD_AXIS_RIGHTX:
+							if (event.gaxis.value < 0) {
+								// negative
+								dYaw = event.gaxis.value / static_cast < float >(std::abs(SDL_JOYSTICK_AXIS_MIN));
+							} else if (event.gaxis.value > 0) {
+								// positive
+								dYaw = event.gaxis.value / static_cast < float >(SDL_JOYSTICK_AXIS_MAX);
+							} else {
+								// exactly 0
+								dYaw = 0;
+							}
+							break;
+
+						case SDL_GamepadAxis::SDL_GAMEPAD_AXIS_RIGHTY:
+							if (event.gaxis.value < 0) {
+								// negative
+								dPitch = event.gaxis.value / static_cast < float >(std::abs(SDL_JOYSTICK_AXIS_MIN));
+							} else if (event.gaxis.value > 0) {
+								// positive
+								dPitch = event.gaxis.value / static_cast < float >(SDL_JOYSTICK_AXIS_MAX);
+							} else {
+								// exactly 0
+								dPitch = 0;
+							}
+							break;
+
+						case SDL_GamepadAxis::SDL_GAMEPAD_AXIS_RIGHT_TRIGGER:
+							if (event.gaxis.value >= 30000)
+								was3dViewSelectRequested = true;
+							break;
+
+						case SDL_GamepadAxis::SDL_GAMEPAD_AXIS_LEFT_TRIGGER:
+							if (event.gaxis.value == 0)
+								speed = 1;
+							else
+								speed = event.gaxis.value / static_cast < float >(SDL_JOYSTICK_AXIS_MAX);
+					}
+					break;
 			}
 
 			if (event.type == SDL_EVENT_QUIT)
@@ -514,7 +597,7 @@ int handoff(char **argv, int argc) {
 				
 		}
 
-		OpenCAGELevelViewer::_3DView::updateCamera(isRightPressed - isLeftPressed, isUpPressed - isDownPressed, isForwardPressed - isBackwardPressed, 0, xMouse, yMouse, yScroll, isShiftPressed, isCtrlPressed, static_cast< float >(currentFrameTime - lastFrameTime) / std::chrono::microseconds::period::den);
+		OpenCAGELevelViewer::_3DView::updateCamera(dX, dY, dZ, 0, dYaw, dPitch, dFov, speed, smooth, static_cast< float >(currentFrameTime - lastFrameTime) / std::chrono::microseconds::period::den);
 
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplSDL3_NewFrame();

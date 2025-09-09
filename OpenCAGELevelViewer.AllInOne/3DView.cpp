@@ -154,34 +154,60 @@ bool OpenCAGELevelViewer::_3DView::axisArrows = true;
 OpenCAGELevelViewer::_3DView::VertexColourMode OpenCAGELevelViewer::_3DView::vertexColourMode = OpenCAGELevelViewer::_3DView::VertexColourMode::MAT_BASED;
 bool OpenCAGELevelViewer::_3DView::ignoreColW = false;
 
-void OpenCAGELevelViewer::_3DView::updateCamera(const signed char x, const signed char y, const signed char z, const signed char roll, const int32_t mouseX, const int32_t mouseY, const float scrollY, const unsigned char isShiftPressed, const unsigned char isCtrlPressed, const float deltaTime) {
+constexpr bool shouldNormalise = false;
+
+void OpenCAGELevelViewer::_3DView::updateCamera(const float x, const float y, const float z, const float roll, const float dYaw, const float dPitch, const float dFov, const float speed, const bool smooth, const float deltaTime) {
 	// TODO: Use isCtrlPressed to create some sort of accelerating camera, kind of like Optifine/Zoomify/Whatever (Minecraft)'s Cinematic Camera.
 
-	static float cameraSpeedX = 1;
-	static float cameraSpeedY = 1;
-	static float cameraSpeedZ = 1;
+	//static float cameraSpeedX = 1;
+	//static float cameraSpeedY = 1;
+	//static float cameraSpeedZ = 1;
+
+	//if (x != 0 || y != 0 || z != 0)
+		//__debugbreak();
+	//if (speed != 1)
+		//__debugbreak();
+
+	static glm::vec3 cameraSpeed {};
 
 	{
-		float targetCurrentSpeed = static_cast< float >(isShiftPressed + 1);
-		float targetCameraSpeedX = x * targetCurrentSpeed;
-		float targetCameraSpeedY = -y * targetCurrentSpeed;
-		float targetCameraSpeedZ = z * targetCurrentSpeed;
+		//float targetCurrentSpeed = speed;
 
-		if (isCtrlPressed) {
-			float acceleration = 0.1f * static_cast< float >(isShiftPressed + 1);
+		glm::vec3 targetCameraSpeed(x, -y, z);
 
-			cameraSpeedX = (targetCameraSpeedX - cameraSpeedX) * acceleration + cameraSpeedX;
-			cameraSpeedY = (targetCameraSpeedY - cameraSpeedY) * acceleration + cameraSpeedY;
-			cameraSpeedZ = (targetCameraSpeedZ - cameraSpeedZ) * acceleration + cameraSpeedZ;
+		std::cout << x << " " << -y << " " << z << std::endl;
+		std::cout << targetCameraSpeed.x << " " << targetCameraSpeed.y << " " << targetCameraSpeed.z << std::endl;
+
+		if constexpr (shouldNormalise)
+			if (targetCameraSpeed != glm::vec3(0.0f)) {
+				decltype(targetCameraSpeed)::value_type sum = targetCameraSpeed.x + targetCameraSpeed.y + targetCameraSpeed.z;
+
+				if (sum > 1.0f)
+					targetCameraSpeed /= sum;
+				//cameraSpeed = glm::normalize(cameraSpeed);
+			}
+
+		//std::cout << speed << std::endl;
+
+		//std::cout << targetCameraSpeed.x + targetCameraSpeed.y + targetCameraSpeed.z << std::endl;
+		targetCameraSpeed *= speed;
+		//std::cout << targetCameraSpeed.x + targetCameraSpeed.y + targetCameraSpeed.z << std::endl;
+
+		if (smooth) {
+			float acceleration = 0.1f * speed;
+
+			cameraSpeed.x = (targetCameraSpeed.x - cameraSpeed.x) * acceleration + cameraSpeed.x;
+			cameraSpeed.y = (targetCameraSpeed.y - cameraSpeed.y) * acceleration + cameraSpeed.y;
+			cameraSpeed.z = (targetCameraSpeed.z - cameraSpeed.z) * acceleration + cameraSpeed.z;
 		} else {
-			cameraSpeedX = targetCameraSpeedX;
-			cameraSpeedY = targetCameraSpeedY;
-			cameraSpeedZ = targetCameraSpeedZ;
+			cameraSpeed = targetCameraSpeed;
 		}
 	}
 
-	yaw += mouseX * 0.1 * mouseSensitivity;
-	pitch += mouseY * -0.1 * mouseSensitivity;
+	
+
+	yaw += dYaw * 0.1 * mouseSensitivity;
+	pitch += dPitch * -0.1 * mouseSensitivity;
 
 	static float pitchLimit = std::nexttowardf(90.0f, 0.0);
 
@@ -199,11 +225,11 @@ void OpenCAGELevelViewer::_3DView::updateCamera(const signed char x, const signe
 		cameraUp = glm::cross(cameraFront, cameraRight);
 	}
 
-	cameraPos += cameraFront                                       * (deltaTime * 5.0f) * cameraSpeedZ;
-	cameraPos += cameraUp                                          * (deltaTime * 5.0f) * cameraSpeedY;
-	cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * (deltaTime * 5.0f) * cameraSpeedX;
+	cameraPos += cameraFront                                       * (deltaTime * 5.0f) * cameraSpeed.z;
+	cameraPos += cameraUp                                          * (deltaTime * 5.0f) * cameraSpeed.y;
+	cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * (deltaTime * 5.0f) * cameraSpeed.x;
 
-	fov += -scrollY;
+	fov += -dFov;
 
 	if (fov < 30.0f) fov = 30.0f;
 	else if (fov > 120.0f) fov = 120.0f;

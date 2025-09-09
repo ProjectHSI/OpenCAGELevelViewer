@@ -39,7 +39,7 @@ namespace OpenCAGELevelViewer {
 		};*/
 
 		//void updateCamera(int32_t x, int32_t y);
-		void updateCamera(const signed char x, const signed char y, const signed char z, const signed char roll, const int32_t mouseX, const int32_t mouseY, const float scrollY, const unsigned char isShiftPressed, const unsigned char isCtrlPressed, const float deltaTime);
+		void updateCamera(const float x, const float y, const float z, const float roll, const float dYaw, const float dPitch, const float dFov, const float speed, const bool smooth, const float deltaTime);
 
 		void markForSelect(ImVec2 coordinates);
 
