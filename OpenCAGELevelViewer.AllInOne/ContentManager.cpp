@@ -210,7 +210,7 @@ static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > 
 		CATHODE::Models::CS2::Component::LOD ^lod = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->ModelsPAK->FindModelLODForSubmesh(submesh);
 		CATHODE::Models::CS2 ^mesh = OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->ModelsPAK->FindModelForSubmesh(submesh);
 
-		if (submesh == nullptr)
+		if (submesh == nullptr || mesh == nullptr || lod == nullptr)
 			return std::nullopt;
 
 		OpenCAGELevelViewer::AllInOne::ContentManager::CMModel model {};
@@ -481,6 +481,28 @@ static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMModel > 
 //}
 #pragma endregion
 
+static uint32_t hash32(uint32_t x) {
+	x ^= x >> 17;
+	x *= 0xed5ad4bbU;
+	x ^= x >> 11;
+	x *= 0xac4c1b51U;
+	x ^= x >> 15;
+	x *= 0x31848babU;
+	x ^= x >> 14;
+	return x;
+}
+
+static uint32_t truncate(uint32_t x) {
+	uint32_t w = x & 0xFFU;
+
+	x >>= 8;
+	x ^= w;
+	x ^= w << 8;
+	x ^= w << 16;
+
+	return x;
+}
+
 #pragma region Material Loading and Handling
 static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMMaterial > getCMMaterial(int entryIndex) {
 	if (!OpenCAGELevelViewer::AllInOne::ContentManager::materials.contains(entryIndex)) {
@@ -590,6 +612,17 @@ static std::optional < OpenCAGELevelViewer::AllInOne::ContentManager::CMMaterial
 			}
 
 			cmMaterial.renderable = setDiffuse;
+		} else {
+			uint32_t hashed = truncate(hash32(static_cast < uint32_t > (shaderMetadata->shaderCategory)));
+
+			//float rT = static_cast < float >(hashed >> 16);
+			float r = static_cast < float >((hashed >> 16) & 0xFF) / std::numeric_limits < uint8_t >::max();
+			float g = static_cast < float >((hashed >>  8) & 0xFF) / std::numeric_limits < uint8_t >::max();
+			float b = static_cast < float >((hashed >>  0) & 0xFF) / std::numeric_limits < uint8_t >::max();
+
+			cmMaterial.materialCol = glm::fvec4(r, g, b, 1.0f);
+
+			assert(cmMaterial.materialCol != glm::fvec4(1.0f, 1.0f, 1.0f, 1.0f));
 		}
 
 		//assert(setDiffuse);
@@ -622,7 +655,7 @@ static OpenCAGELevelViewer::AllInOne::ContentManager::EntityDataValue ^getEntity
 			continue;
 
 		OpenCAGELevelViewer::AllInOne::ContentManager::EntityDataValue ^entityDataValue;
-		if (!current->children->TryGetValue(shortGuid, entityDataValue))
+		if (current != nullptr && !current->children->TryGetValue(shortGuid, entityDataValue))
 			return nullptr;
 
 		if (i == entityPath->Length - 1 || (entityPath->Length > 1 && i == entityPath->Length - 2 && entityPath[entityPath->Length - 1].AsUInt32 == 0))
@@ -736,6 +769,9 @@ static void CascadeEntity(OpenCAGELevelViewer::AllInOne::ContentManager::Composi
 								//if (!OpenCAGELevelViewer::AllInOne::ContentManager::compositesById->Contains(getEntityPathFromEntity(modelReferenceDataValue)))
 								OpenCAGELevelViewer::AllInOne::ContentManager::compositesById->Add(getEntityPathFromEntity(modelReferenceDataValue));
 
+								//if (functionEntity->shortGUID == CATHODE::Scripting::ShortGuid("55-D3-A6-84"))
+									//__debugbreak();
+
 								if (resourceParameter != nullptr && resourceParameter->content != nullptr && resourceParameter->content->dataType == CATHODE::Scripting::DataType::RESOURCE) {
 									CATHODE::Scripting::cResource ^resource = dynamic_cast< CATHODE::Scripting::cResource ^ >(resourceParameter->content);
 									CATHODE::Scripting::ResourceReference ^resourceRef = resource->GetResource(CATHODE::Scripting::ResourceType::RENDERABLE_INSTANCE);
@@ -764,7 +800,7 @@ static void CascadeEntity(OpenCAGELevelViewer::AllInOne::ContentManager::Composi
 													} else
 														modelReferenceGl.modelCol = glm::fvec4(1.0f);
 
-													modelReferenceGl.isRenderable = cmMaterial->renderable;
+													modelReferenceGl.isRenderable = true;
 
 													modelReferenceGl.colOffset = glm::fvec4(1.0f);
 

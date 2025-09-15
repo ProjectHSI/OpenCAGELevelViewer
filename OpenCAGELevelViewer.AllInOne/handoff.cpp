@@ -152,7 +152,7 @@ static bool fillInCommandsContentChildren(CommandsContentChildren &commandsConte
 
 	// Regenerate commandsContent.
 
-	if (OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance.operator OpenCAGELevelViewer::AllInOne::ContentManager::LevelContent ^() == nullptr)
+	if (OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance.operator OpenCAGELevelViewer::AllInOne::ContentManager::LevelContent ^ () == nullptr)
 		return false;
 
 	if (OpenCAGELevelViewer::AllInOne::ContentManager::levelContentInstance->combinedHash != OpenCAGELevelViewer::AllInOne::combineHash(OpenCAGELevelViewer::AllInOne::ContentManager::getGameRootHash(), OpenCAGELevelViewer::AllInOne::ContentManager::getLevelHash()))
@@ -223,7 +223,7 @@ static void renderCommandsContentChildren(const CommandsContentChildren &command
 			}
 		} else {
 			ImGui::TreeNodeEx(content.name.c_str(), ImGuiTreeNodeFlags_Leaf | (content.shortGuid == OpenCAGELevelViewer::AllInOne::ContentManager::getComposite() ? ImGuiTreeNodeFlags_Selected : 0));
-			if (content.shortGuid != OpenCAGELevelViewer::AllInOne::ContentManager::getComposite() && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+			if (content.shortGuid != OpenCAGELevelViewer::AllInOne::ContentManager::getComposite() && ImGui::IsItemActive()) {
 				OpenCAGELevelViewer::AllInOne::ContentManager::setComposite(content.shortGuid);
 			}
 			ImGui::TreePop();
@@ -338,7 +338,7 @@ int handoff(char **argv, int argc) {
 
 	//__debugbreak();
 
-	if ((gotMajorVersion != 4 || gotMinorVersion != 3) &&  SDL_GL_ExtensionSupported("ARB_gpu_shader_int64")) {
+	if ((gotMajorVersion != 4 || gotMinorVersion != 3) && SDL_GL_ExtensionSupported("ARB_gpu_shader_int64")) {
 		fatalError("Your system does not support the needed OpenGL version and/or extensions.\nCheck that you have the latest graphics drivers for your card installed, and that your card is correctly configured.");
 	}
 
@@ -424,13 +424,20 @@ int handoff(char **argv, int argc) {
 		static bool isUpPressed = false;
 		static bool isDownPressed = false;
 
-		float dYaw = 0;
-		float dPitch = 0;
+		static bool isConUpPressed = false;
+		static bool isConDownPressed = false;
 
-		float dFov = 0;
+		float dYawMouse = 0;
+		float dPitchMouse = 0;
+		static float dYaw = 0;
+		static float dPitch = 0;
 
+		float dFovMouse = 0;
+		static float dFov = 0;
+
+		constexpr int32_t deadzone = 100;
 		assert(dX >= -2 && dY <= 2 && dY >= -2 && dY <= 2 && dZ >= -2 && dZ <= 2);
-		
+
 		SDL_Event event;
 
 		while (SDL_PollEvent(&event)) {
@@ -442,13 +449,13 @@ int handoff(char **argv, int argc) {
 					break;
 				case SDL_EVENT_MOUSE_MOTION:
 					if (_3dViewLockInput) {
-						dYaw += event.motion.xrel;
-						dPitch += event.motion.yrel;
+						dYawMouse += event.motion.xrel;
+						dPitchMouse += event.motion.yrel;
 					}
 					break;
 				case SDL_EVENT_MOUSE_WHEEL:
 					if (_3dViewLockInput) {
-						dFov += event.wheel.y;
+						dFovMouse += event.wheel.y;
 					}
 					break;
 				case SDL_EVENT_KEY_DOWN:
@@ -506,6 +513,9 @@ int handoff(char **argv, int argc) {
 								dX = 0;
 								dY = 0;
 								dZ = 0;
+								dPitch = 0;
+								dYaw = 0;
+								dFov = 0;
 								speed = 1;
 								smooth = false;
 								break;
@@ -560,78 +570,132 @@ int handoff(char **argv, int argc) {
 					break;
 
 				case SDL_EVENT_GAMEPAD_AXIS_MOTION:
-					switch (event.gaxis.axis) {
-						case SDL_GamepadAxis::SDL_GAMEPAD_AXIS_LEFTX:
-							if (event.gaxis.value < 0) {
-								// negative
-								dX = event.gaxis.value / static_cast < float >(std::abs(SDL_JOYSTICK_AXIS_MIN));
-							} else if (event.gaxis.value > 0) {
-								// positive
-								dX = event.gaxis.value / static_cast < float >(SDL_JOYSTICK_AXIS_MAX);
-							} else {
-								// exactly 0
-								dX = 0;
-							}
-							break;
-						case SDL_GamepadAxis::SDL_GAMEPAD_AXIS_LEFTY:
-							if (event.gaxis.value < 0) {
-								// negative
-								dZ = event.gaxis.value / static_cast < float >(std::abs(SDL_JOYSTICK_AXIS_MIN));
-							} else if (event.gaxis.value > 0) {
-								// positive
-								dZ = event.gaxis.value / static_cast < float >(SDL_JOYSTICK_AXIS_MAX);
-							} else {
-								// exactly 0
-								dZ = 0;
-							}
-							break;
+					if (_3dViewLockInput) {
+						switch (event.gaxis.axis) {
+							case SDL_GamepadAxis::SDL_GAMEPAD_AXIS_LEFTX:
+								if (event.gaxis.value < -deadzone) {
+									// negative
+									dX = event.gaxis.value / static_cast < float >(std::abs(SDL_JOYSTICK_AXIS_MIN));
+								} else if (event.gaxis.value > deadzone) {
+									// positive
+									dX = event.gaxis.value / static_cast < float >(SDL_JOYSTICK_AXIS_MAX);
+								} else {
+									// exactly 0
+									dX = 0;
+								}
+								break;
+							case SDL_GamepadAxis::SDL_GAMEPAD_AXIS_LEFTY:
+								if (event.gaxis.value < -deadzone) {
+									// negative
+									dZ = event.gaxis.value / -static_cast < float >(std::abs(SDL_JOYSTICK_AXIS_MIN));
+								} else if (event.gaxis.value > deadzone) {
+									// positive
+									dZ = event.gaxis.value / -static_cast < float >(SDL_JOYSTICK_AXIS_MAX);
+								} else {
+									// exactly 0
+									dZ = 0;
+								}
+								break;
 
-						case SDL_GamepadAxis::SDL_GAMEPAD_AXIS_RIGHTX:
-							if (event.gaxis.value < 0) {
-								// negative
-								dYaw = event.gaxis.value / static_cast < float >(std::abs(SDL_JOYSTICK_AXIS_MIN));
-							} else if (event.gaxis.value > 0) {
-								// positive
-								dYaw = event.gaxis.value / static_cast < float >(SDL_JOYSTICK_AXIS_MAX);
-							} else {
-								// exactly 0
-								dYaw = 0;
-							}
-							break;
+							case SDL_GamepadAxis::SDL_GAMEPAD_AXIS_RIGHTX:
+								if (event.gaxis.value < -deadzone) {
+									// negative
+									dYaw = event.gaxis.value / static_cast < float >(std::abs(SDL_JOYSTICK_AXIS_MIN)) * 50;
+								} else if (event.gaxis.value > deadzone) {
+									// positive
+									dYaw = event.gaxis.value / static_cast < float >(SDL_JOYSTICK_AXIS_MAX) * 50;
+								} else {
+									// exactly 0
+									dYaw = 0;
+								}
+								break;
 
-						case SDL_GamepadAxis::SDL_GAMEPAD_AXIS_RIGHTY:
-							if (event.gaxis.value < 0) {
-								// negative
-								dPitch = event.gaxis.value / static_cast < float >(std::abs(SDL_JOYSTICK_AXIS_MIN));
-							} else if (event.gaxis.value > 0) {
-								// positive
-								dPitch = event.gaxis.value / static_cast < float >(SDL_JOYSTICK_AXIS_MAX);
-							} else {
-								// exactly 0
-								dPitch = 0;
-							}
-							break;
+							case SDL_GamepadAxis::SDL_GAMEPAD_AXIS_RIGHTY:
+								if (event.gaxis.value < -deadzone) {
+									// negative
+									dPitch = event.gaxis.value / static_cast < float >(std::abs(SDL_JOYSTICK_AXIS_MIN)) * 50;
+								} else if (event.gaxis.value > deadzone) {
+									// positive
+									dPitch = event.gaxis.value / static_cast < float >(SDL_JOYSTICK_AXIS_MAX) * 50;
+								} else {
+									// exactly 0
+									dPitch = 0;
+								}
+								break;
 
-						case SDL_GamepadAxis::SDL_GAMEPAD_AXIS_RIGHT_TRIGGER:
-							if (event.gaxis.value >= 30000)
-								was3dViewSelectRequested = true;
-							break;
+							case SDL_GamepadAxis::SDL_GAMEPAD_AXIS_RIGHT_TRIGGER:
+								if (event.gaxis.value >= 30000)
+									was3dViewSelectRequested = true;
+								break;
 
-						case SDL_GamepadAxis::SDL_GAMEPAD_AXIS_LEFT_TRIGGER:
-							if (event.gaxis.value == 0)
-								speed = 1;
-							else
-								speed = event.gaxis.value / static_cast < float >(SDL_JOYSTICK_AXIS_MAX);
+							case SDL_GamepadAxis::SDL_GAMEPAD_AXIS_LEFT_TRIGGER:
+								if (event.gaxis.value == 0)
+									speed = 1;
+								else
+									speed = event.gaxis.value / static_cast < float >(SDL_JOYSTICK_AXIS_MAX) * 2;
+						}
+					}
+					break;
+				case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+					if (_3dViewLockInput) {
+						switch (event.gbutton.button) {
+							case SDL_GamepadButton::SDL_GAMEPAD_BUTTON_DPAD_UP:
+								dFov += 1.0f;
+								break;
+							case SDL_GamepadButton::SDL_GAMEPAD_BUTTON_DPAD_DOWN:
+								dFov -= 1.0f;
+								break;
+							case SDL_GamepadButton::SDL_GAMEPAD_BUTTON_LEFT_SHOULDER:
+								isConDownPressed = true;
+								dY = isConUpPressed - isConDownPressed;
+								break;
+							case SDL_GamepadButton::SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER:
+								isConUpPressed = true;
+								dY = isConUpPressed - isConDownPressed;
+								break;
+						}
+						if (SDL_GetGamepadButtonLabel(SDL_GetGamepadFromID(event.gbutton.which), static_cast < SDL_GamepadButton >(event.gbutton.button)) == SDL_GamepadButtonLabel::SDL_GAMEPAD_BUTTON_LABEL_B) {
+							_3dViewLockInput = false;
+
+							ImGuiIO &io = ImGui::GetIO(); ( void ) io;
+							io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+							io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+							io.ConfigFlags &= (0xFFFFFFFF ^ ImGuiConfigFlags_NoMouse);
+
+							SDL_SetWindowRelativeMouseMode(sdlWindow, false);
+						}
+					}
+					break;
+				case SDL_EVENT_GAMEPAD_BUTTON_UP:
+					if (_3dViewLockInput) {
+						switch (event.gbutton.button) {
+							case SDL_GamepadButton::SDL_GAMEPAD_BUTTON_DPAD_UP:
+								dFov -= 1.0f;
+								break;
+							case SDL_GamepadButton::SDL_GAMEPAD_BUTTON_DPAD_DOWN:
+								dFov += 1.0f;
+								break;
+							case SDL_GamepadButton::SDL_GAMEPAD_BUTTON_LEFT_SHOULDER:
+								isConDownPressed = false;
+								dY = isConUpPressed - isConDownPressed;
+								break;
+							case SDL_GamepadButton::SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER:
+								isConUpPressed = false;
+								dY = isConUpPressed - isConDownPressed;
+								break;
+						}
 					}
 					break;
 			}
 
 			if (event.type == SDL_EVENT_QUIT)
 				userRequestedExit = true;
-				
+
 		}
 
-		OpenCAGELevelViewer::_3DView::updateCamera(dX, dY, dZ, 0, dYaw, dPitch, dFov, speed, smooth, static_cast< float >(currentFrameTime - lastFrameTime) / std::chrono::microseconds::period::den);
+		std::cout << dX << " " << dZ << " " << dYaw << " " << dPitch << std::endl;
+
+		OpenCAGELevelViewer::_3DView::updateCamera(dX, dY, dZ, 0, dYaw + dYawMouse, dPitch + dPitchMouse, dFov + dFovMouse, speed, smooth, static_cast< float >(currentFrameTime - lastFrameTime) / std::chrono::microseconds::period::den);
 
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplSDL3_NewFrame();
@@ -915,10 +979,10 @@ int handoff(char **argv, int argc) {
 								if (OpenCAGELevelViewer::AllInOne::Handoff::currentSceneRenderingStrategy == i)
 									ImGui::SetItemDefaultFocus();
 							}
-							
+
 							ImGui::EndCombo();
 						}
-						
+
 						ImGui::EndTabItem();
 					}
 
@@ -1186,45 +1250,45 @@ int handoff(char **argv, int argc) {
 		{
 			if (ImGui::Begin("3D View")) {
 				//if (openGlLoadingThreadIsDone.test()) {
-					if (ImGui::BeginChild("3DViewRender")) {
-						ImVec2 wsize = ImGui::GetWindowSize();
+				if (ImGui::BeginChild("3DViewRender")) {
+					ImVec2 wsize = ImGui::GetWindowSize();
 
-						ImVec2 currentCursor = ImGui::GetCursorPos();
+					ImVec2 currentCursor = ImGui::GetCursorPos();
 
-						//glBindTexture(GL_TEXTURE_2D, 0);
+					//glBindTexture(GL_TEXTURE_2D, 0);
 
-						ImVec2 clickPos = ImVec2(0.5f, 0.5f);
-						if (ImGui::InvisibleButton("3DViewRenderPhantom", wsize, ImGuiButtonFlags_::ImGuiButtonFlags_MouseButtonLeft)) {
-							if (ImGui::IsKeyDown(ImGuiKey::ImGuiMod_Ctrl)) {
-								clickPos = (ImGui::GetMousePos() - ImGui::GetItemRectMin()) / ImGui::GetItemRectSize();
-								was3dViewSelectRequested = true;
-							} else {
-								_3dViewLockInput = true;
+					ImVec2 clickPos = ImVec2(0.5f, 0.5f);
+					if (ImGui::InvisibleButton("3DViewRenderPhantom", wsize, ImGuiButtonFlags_::ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_::ImGuiButtonFlags_EnableNav)) {
+						if (ImGui::IsKeyDown(ImGuiKey::ImGuiMod_Ctrl)) {
+							clickPos = (ImGui::GetMousePos() - ImGui::GetItemRectMin()) / ImGui::GetItemRectSize();
+							was3dViewSelectRequested = true;
+						} else {
+							_3dViewLockInput = true;
 
-								ImGuiIO &io = ImGui::GetIO(); ( void ) io;
-								io.ConfigFlags &= (0xFFFFFFFF ^ ImGuiConfigFlags_NavEnableKeyboard);
-								io.ConfigFlags &= (0xFFFFFFFF ^ ImGuiConfigFlags_NavEnableGamepad);
-								io.ConfigFlags |= ImGuiConfigFlags_NoMouse;
+							ImGuiIO &io = ImGui::GetIO(); ( void ) io;
+							io.ConfigFlags &= (0xFFFFFFFF ^ ImGuiConfigFlags_NavEnableKeyboard);
+							io.ConfigFlags &= (0xFFFFFFFF ^ ImGuiConfigFlags_NavEnableGamepad);
+							io.ConfigFlags |= ImGuiConfigFlags_NoMouse;
 
-								SDL_SetWindowRelativeMouseMode(sdlWindow, true);
-							}
+							SDL_SetWindowRelativeMouseMode(sdlWindow, true);
 						}
-						ImGui::SetCursorPos(currentCursor);
-						ImGui::SetNextItemAllowOverlap();
-
-						OpenCAGELevelViewer::_3DView::Render(wsize);
-
-						if (was3dViewSelectRequested) {
-							const int64_t selectedInstanceId = OpenCAGELevelViewer::_3DView::getUserSelectedInstanceId(wsize, clickPos);
-							if (selectedInstanceId != -1) {
-								debugTestDelegate(selectedInstanceId);
-								//auto  debug.first.operator->() << std::endl;
-							}
-						}
-
-						ImGui::Image(( ImTextureID ) OpenCAGELevelViewer::_3DView::getFbo(), wsize, ImVec2(0, 1), ImVec2(1, 0));
 					}
-					ImGui::EndChild();
+					ImGui::SetCursorPos(currentCursor);
+					ImGui::SetNextItemAllowOverlap();
+
+					OpenCAGELevelViewer::_3DView::Render(wsize);
+
+					if (was3dViewSelectRequested) {
+						const int64_t selectedInstanceId = OpenCAGELevelViewer::_3DView::getUserSelectedInstanceId(wsize, clickPos);
+						if (selectedInstanceId != -1) {
+							debugTestDelegate(selectedInstanceId);
+							//auto  debug.first.operator->() << std::endl;
+						}
+					}
+
+					ImGui::Image(( ImTextureID ) OpenCAGELevelViewer::_3DView::getFbo(), wsize, ImVec2(0, 1), ImVec2(1, 0));
+				}
+				ImGui::EndChild();
 				//}
 
 				/*int w, h;

@@ -1447,8 +1447,11 @@ const int64_t OpenCAGELevelViewer::_3DView::getUserSelectedInstanceId(const ImVe
 
 	uint32_t instanceId {};
 	glm::uint32_t depth {};
-	glReadPixels(static_cast< GLint >(selectedCoordinates.x * windowSize.x), static_cast< GLint >((selectedCoordinates.y) * windowSize.y), 1, 1, GL_RED_INTEGER, GL_UNSIGNED_INT, &instanceId);
-	glReadPixels(static_cast< GLint >(selectedCoordinates.x * windowSize.x), static_cast< GLint >((selectedCoordinates.y) * windowSize.y), 1, 1, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, &depth);
+	glReadPixels(static_cast< GLint >(selectedCoordinates.x * windowSize.x), static_cast< GLint >(selectedCoordinates.y * windowSize.y), 1, 1, GL_RED_INTEGER, GL_UNSIGNED_INT, &instanceId);
+	glReadPixels(static_cast< GLint >(selectedCoordinates.x * windowSize.x), static_cast< GLint >(selectedCoordinates.y * windowSize.y), 1, 1, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, &depth);
+
+	std::cout << static_cast< GLint >(selectedCoordinates.x * windowSize.x) << ", " << static_cast< GLint >(selectedCoordinates.y * windowSize.y) << std::endl;
+	std::cout << instanceId << ", " << depth << std::endl;
 
 	glClear(GL_DEPTH_BUFFER_BIT);
 
