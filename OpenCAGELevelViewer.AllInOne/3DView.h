@@ -16,7 +16,7 @@ namespace OpenCAGELevelViewer {
 		extern float mouseSensitivity;
 		extern bool  axisArrows;
 		extern bool  ignoreColW;
-
+		extern bool	 keepUnrenderables;
 		
 		enum VertexColourMode {
 			MAT_BASED = 0,

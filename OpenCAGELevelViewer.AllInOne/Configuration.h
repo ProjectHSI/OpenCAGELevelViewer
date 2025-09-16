@@ -26,6 +26,8 @@ namespace OpenCAGELevelViewer {
 
 			struct Configuration {
 				Version version;
+
+				float fontSize;
 				int vsync;
 
 				Profile profile[profileLength];

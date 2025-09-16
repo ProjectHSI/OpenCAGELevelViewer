@@ -45,7 +45,7 @@ std::atomic_flag OpenCAGELevelViewer::WebsocketThread::connected = ATOMIC_FLAG_I
 std::atomic_flag OpenCAGELevelViewer::WebsocketThread::ready = ATOMIC_FLAG_INIT;
 std::atomic_flag wasConnected = ATOMIC_FLAG_INIT; // for internal use, just meant to be for checking if the connection was established, before doing the busy wait.
 
-std::atomic_flag OpenCAGELevelViewer::WebsocketThread::keepThreadActive;
+//std::atomic_flag OpenCAGELevelViewer::WebsocketThread::keepThreadActive;
 
 //bool OpenCAGELevelViewer::WebsocketThread::isConnected(void) {
 
@@ -755,14 +755,14 @@ static void processWebsocketMessage(std::vector<char> &data) {
 	data.erase(data.begin(), data.begin() + headerSize + payloadLength);
 }
 
-void OpenCAGELevelViewer::WebsocketThread::main() {
+void OpenCAGELevelViewer::WebsocketThread::main(const std::atomic_flag &suspendFlag) {
 #ifndef NDEBUG
 	assert(base64Tests());
 #endif
 
 	OpenCAGELevelViewer::WSockWrapper::WinSock wsa;
 
-	while (keepThreadActive.test()) {
+	while (suspendFlag.test()) {
 		connected.clear();
 		ready.clear();
 		wasConnected.clear();

@@ -433,6 +433,7 @@
     <ClInclude Include="ContentManager.h" />
     <ClInclude Include="ContentManager.New.h" />
     <ClInclude Include="ContentManager.old.h" />
+    <ClInclude Include="Contributions.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="handoff.h" />
     <ClInclude Include="pch.h" />
@@ -509,6 +510,11 @@
     <ProjectReference Include="..\OpenCAGELevelViewer.AllInOne.CSManaged\OpenCAGELevelViewer.AllInOne.CSManaged.csproj">
       <Project>{7d9142bc-4f9c-c208-c36d-1732255a88e9}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Font Include="ProggyVector-Dotted.ttf">
+      <DeploymentContent>true</DeploymentContent>
+    </Font>
   </ItemGroup>
   <PropertyGroup>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>

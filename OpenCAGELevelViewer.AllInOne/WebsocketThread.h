@@ -20,7 +20,7 @@ namespace OpenCAGELevelViewer {
 		extern std::atomic_flag connected;
 		extern std::atomic_flag ready;
 
-		extern std::atomic_flag keepThreadActive;
+		//extern std::atomic_flag keepThreadActive;
 
 		struct OpenCAGECommandsEditorState {
 			long long version;
@@ -28,6 +28,6 @@ namespace OpenCAGELevelViewer {
 
 		extern std::recursive_mutex commandsEditorStateMutex;
 
-		void main(void);
+		void main(const std::atomic_flag &suspendFlag);
 	}
 }

@@ -54,6 +54,9 @@
     <ClInclude Include="ContentManager.New.h">
       <Filter>Header Files\ContentManager</Filter>
     </ClInclude>
+    <ClInclude Include="Contributions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp">
@@ -127,5 +130,10 @@
     <None Include="IntegerSelectPassthrough.frag">
       <Filter>Resource Files</Filter>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Font Include="ProggyVector-Dotted.ttf">
+      <Filter>Resource Files</Filter>
+    </Font>
   </ItemGroup>
 </Project>

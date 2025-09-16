@@ -7,9 +7,11 @@ uniform bool ignoreColW;
 layout(location = 0) out vec4 FragColor;
 layout(location = 1) out uint InstanceID;
 
+uniform bool keepUnrenderables;
+
 void main()
 {
-    if (isRenderable == 0)
+    if (isRenderable == 0 && !keepUnrenderables)
         discard;
 
     FragColor = colour;

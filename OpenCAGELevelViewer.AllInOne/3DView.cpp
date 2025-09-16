@@ -153,6 +153,7 @@ float OpenCAGELevelViewer::_3DView::mouseSensitivity = 1.0f;
 bool OpenCAGELevelViewer::_3DView::axisArrows = true;
 OpenCAGELevelViewer::_3DView::VertexColourMode OpenCAGELevelViewer::_3DView::vertexColourMode = OpenCAGELevelViewer::_3DView::VertexColourMode::MAT_BASED;
 bool OpenCAGELevelViewer::_3DView::ignoreColW = false;
+bool OpenCAGELevelViewer::_3DView::keepUnrenderables = false;
 
 constexpr bool shouldNormalise = false;
 
@@ -229,7 +230,7 @@ void OpenCAGELevelViewer::_3DView::updateCamera(const float x, const float y, co
 	cameraPos += cameraUp                                          * (deltaTime * 5.0f) * cameraSpeed.y;
 	cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * (deltaTime * 5.0f) * cameraSpeed.x;
 
-	fov += -dFov;
+	fov += dFov;
 
 	if (fov < 30.0f) fov = 30.0f;
 	else if (fov > 120.0f) fov = 120.0f;
@@ -1174,7 +1175,7 @@ static void regenerateMRVAO() {
 }
 
 #pragma managed(push, off)
-void drawScene(const glm::mat4 &projection, const glm::mat4 &view, OpenCAGELevelViewer::_3DView::VertexColourMode vertexColourMode, bool ignoreColW) {
+void drawScene(const glm::mat4 &projection, const glm::mat4 &view, OpenCAGELevelViewer::_3DView::VertexColourMode vertexColourMode, bool ignoreColW, bool keepUnrenderables) {
 	if (MRVertexArray != 0) {
 		glUseProgram(baseProgram);
 		glUniformMatrix4fv(glGetUniformLocation(baseProgram, "projection"), 1, GL_FALSE, &projection[0][0]);
@@ -1182,6 +1183,7 @@ void drawScene(const glm::mat4 &projection, const glm::mat4 &view, OpenCAGELevel
 
 		glUniform1i(glGetUniformLocation(baseProgram, "vertexColourMode"), vertexColourMode);
 		glUniform1i(glGetUniformLocation(baseProgram, "ignoreColW"), ignoreColW);
+		glUniform1i(glGetUniformLocation(baseProgram, "keepUnrenderables"), keepUnrenderables);
 		//glUniform1iv(glGetUniformLocation(baseProgram, "ignoreColW"), 1, GL_FALSE, &view[0][0]);
 
 		glBindVertexArray(MRVertexArray);
@@ -1322,7 +1324,7 @@ void OpenCAGELevelViewer::_3DView::Render(ImVec2 windowSize/*, std::optional<std
 
 #endif
 
-	drawScene(projection, view, vertexColourMode, ignoreColW);
+	drawScene(projection, view, vertexColourMode, ignoreColW, keepUnrenderables);
 
 #pragma endregion
 
@@ -1443,7 +1445,7 @@ const int64_t OpenCAGELevelViewer::_3DView::getUserSelectedInstanceId(const ImVe
 	glm::mat4 projection = glm::perspective(glm::radians(fov), ( float ) windowSize.x / ( float ) windowSize.y, 0.1f, 1000.0f);
 	glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
-	drawScene(projection, view, VertexColourMode::INSTANCE_ID_BASED, true);
+	drawScene(projection, view, VertexColourMode::INSTANCE_ID_BASED, true, keepUnrenderables);
 
 	uint32_t instanceId {};
 	glm::uint32_t depth {};

@@ -17,6 +17,7 @@
 #include <string>
 #include <thread>
 #include <variant>
+#include "Contributions.h"
 
 #include "3DView.h"
 #include <algorithm>
@@ -296,6 +297,28 @@ static void debugTestDelegate(const int64_t selectedInstanceId) {
 #pragma managed(pop)
 
 #pragma managed(push, off)
+ImFont *currentFont = nullptr;
+
+static void loadStdFont(float size, ImGuiIO &io) {
+	io.Fonts->ClearFonts();
+
+	ImFont *stdFont = io.Fonts->AddFontFromFileTTF((OpenCAGELevelViewer::AllInOne::getApplicationPathAsStdPath() / "ProggyVector-Dotted.ttf").generic_string().c_str(), size, NULL, io.Fonts->GetGlyphRangesDefault());;
+	assert(stdFont != nullptr);
+
+	//io.Fonts.
+
+	currentFont = stdFont;
+	io.FontDefault = stdFont;
+
+	io.Fonts->Build();
+	ImGui_ImplOpenGL3_DestroyFontsTexture();
+	ImGui_ImplOpenGL3_CreateFontsTexture();
+
+	//return
+	
+	//io.FontDefault = stdFont;
+}
+
 int handoff(char **argv, int argc) {
 	// force c++/cli to initalise here.
 	// if c++/cli isn't initalised, debugging becomes very strange.
@@ -365,14 +388,16 @@ int handoff(char **argv, int argc) {
 	ImGui_ImplSDL3_InitForOpenGL(sdlWindow, SDL_GL_GetCurrentContext());
 	ImGui_ImplOpenGL3_Init();
 
-	OpenCAGELevelViewer::WebsocketThread::keepThreadActive.test_and_set();
+	loadStdFont(OpenCAGELevelViewer::AllInOne::Configuration::configuration.fontSize, io);
+
+	///OpenCAGELevelViewer::WebsocketThread::keepThreadActive.test_and_set();
 	OpenCAGELevelViewer::WebsocketThread::willConnect.clear();
 
 	std::atomic_flag suspendFlag;
 	suspendFlag.test_and_set();
 
 	std::thread contentManagerThread([&suspendFlag]() -> void { OpenCAGELevelViewer::AllInOne::ContentManager::threadMain(suspendFlag); });
-	std::thread websocketThread(OpenCAGELevelViewer::WebsocketThread::main);
+	std::thread websocketThread([&suspendFlag]() -> void { OpenCAGELevelViewer::WebsocketThread::main(suspendFlag); });
 
 	bool userRequestedExit = false;
 
@@ -400,6 +425,9 @@ int handoff(char **argv, int argc) {
 		static float dY = 0;
 		static float dZ = 0;
 		static float speed = 1;
+
+		static bool isKbSmoothPressed = false;
+		static bool isConSmoothPressed = false;
 		static bool smooth = false;
 		//static bool isUpPressed = false;
 		//static bool isDownPressed = false;
@@ -505,7 +533,7 @@ int handoff(char **argv, int argc) {
 								speed = 2;
 								break;
 							case SDLK_LCTRL:
-								smooth = true;
+								isKbSmoothPressed = true;
 								break;
 
 							case SDLK_RALT:
@@ -556,7 +584,7 @@ int handoff(char **argv, int argc) {
 								speed = 1;
 								break;
 							case SDLK_LCTRL:
-								smooth = false;
+								isKbSmoothPressed = false;
 								break;
 						}
 					}
@@ -640,10 +668,10 @@ int handoff(char **argv, int argc) {
 					if (_3dViewLockInput) {
 						switch (event.gbutton.button) {
 							case SDL_GamepadButton::SDL_GAMEPAD_BUTTON_DPAD_UP:
-								dFov += 1.0f;
+								dFov -= 1.0f; // zoom in
 								break;
 							case SDL_GamepadButton::SDL_GAMEPAD_BUTTON_DPAD_DOWN:
-								dFov -= 1.0f;
+								dFov += 1.0f; // zoom out
 								break;
 							case SDL_GamepadButton::SDL_GAMEPAD_BUTTON_LEFT_SHOULDER:
 								isConDownPressed = true;
@@ -652,6 +680,9 @@ int handoff(char **argv, int argc) {
 							case SDL_GamepadButton::SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER:
 								isConUpPressed = true;
 								dY = isConUpPressed - isConDownPressed;
+								break;
+							case SDL_GamepadButton::SDL_GAMEPAD_BUTTON_LEFT_STICK:
+								isConSmoothPressed = true;
 								break;
 						}
 						if (SDL_GetGamepadButtonLabel(SDL_GetGamepadFromID(event.gbutton.which), static_cast < SDL_GamepadButton >(event.gbutton.button)) == SDL_GamepadButtonLabel::SDL_GAMEPAD_BUTTON_LABEL_B) {
@@ -670,10 +701,10 @@ int handoff(char **argv, int argc) {
 					if (_3dViewLockInput) {
 						switch (event.gbutton.button) {
 							case SDL_GamepadButton::SDL_GAMEPAD_BUTTON_DPAD_UP:
-								dFov -= 1.0f;
+								dFov += 1.0f;
 								break;
 							case SDL_GamepadButton::SDL_GAMEPAD_BUTTON_DPAD_DOWN:
-								dFov += 1.0f;
+								dFov -= 1.0f;
 								break;
 							case SDL_GamepadButton::SDL_GAMEPAD_BUTTON_LEFT_SHOULDER:
 								isConDownPressed = false;
@@ -682,6 +713,9 @@ int handoff(char **argv, int argc) {
 							case SDL_GamepadButton::SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER:
 								isConUpPressed = false;
 								dY = isConUpPressed - isConDownPressed;
+								break;
+							case SDL_GamepadButton::SDL_GAMEPAD_BUTTON_LEFT_STICK:
+								isConSmoothPressed = false;
 								break;
 						}
 					}
@@ -693,10 +727,20 @@ int handoff(char **argv, int argc) {
 
 		}
 
-		std::cout << dX << " " << dZ << " " << dYaw << " " << dPitch << std::endl;
+		//std::cout << dX << " " << dZ << " " << dYaw << " " << dPitch << std::endl;
+		smooth = isKbSmoothPressed || isConSmoothPressed;
 
-		OpenCAGELevelViewer::_3DView::updateCamera(dX, dY, dZ, 0, dYaw + dYawMouse, dPitch + dPitchMouse, dFov + dFovMouse, speed, smooth, static_cast< float >(currentFrameTime - lastFrameTime) / std::chrono::microseconds::period::den);
+		OpenCAGELevelViewer::_3DView::updateCamera(dX, dY, dZ, 0, dYaw + dYawMouse, dPitch + dPitchMouse, dFov + -dFovMouse, speed, smooth, static_cast< float >(currentFrameTime - lastFrameTime) / std::chrono::microseconds::period::den);
 
+		static float newFontSize = OpenCAGELevelViewer::AllInOne::Configuration::configuration.fontSize;
+		static bool newFontSizeSelected = true;
+		
+		if (newFontSizeSelected) {
+			loadStdFont(newFontSize, io);
+			newFontSizeSelected = false;
+			OpenCAGELevelViewer::AllInOne::Configuration::configuration.fontSize = newFontSize;
+		}
+		
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplSDL3_NewFrame();
 		ImGui::NewFrame();
@@ -719,6 +763,7 @@ int handoff(char **argv, int argc) {
 
 	#pragma region ImGui Start
 		static bool openAboutMenu = false;
+		static bool openLicensesMenu = false;
 		static bool isSettingsMenuOpen = false;
 		static bool isDebugMenuOpen = true;
 
@@ -800,6 +845,7 @@ int handoff(char **argv, int argc) {
 
 				if (ImGui::BeginMenu("Help")) {
 					openAboutMenu = ImGui::MenuItem("About");
+					openLicensesMenu = ImGui::MenuItem("Licenses");
 					ImGui::MenuItem("Settings", NULL, &isSettingsMenuOpen);
 
 					ImGui::EndMenu();
@@ -847,11 +893,27 @@ int handoff(char **argv, int argc) {
 			ImGui::Text("OpenCAGE C++ Level Viewer");
 			ImGui::Text("By ProjectHSI");
 			ImGui::NewLine();
-			ImGui::Text("Pre-Alpha");
+			ImGui::Text("Alpha");
 			ImGui::NewLine();
 			ImGui::Text("Made with CATHODELib by Matt Filer");
 			ImGui::NewLine();
 			ImGui::Text("Made with love for the OpenCAGE Community");
+
+			ImGui::EndPopup();
+		}
+
+		if (openLicensesMenu)
+			ImGui::OpenPopup("Licenses", 0);
+
+		if (ImGui::BeginPopupModal("Licenses", &openLicensesMenu, 0)) {
+			ImGui::Text("OpenCAGE C++ Level Viewer");
+			ImGui::Text("Licensed under the MIT License");
+			ImGui::NewLine();
+			ImGui::Text("The following licenses listed below are a work in progress.");
+			ImGui::Text("Contributions are appreciated (see \"Contributions.h\").");
+			ImGui::NewLine();
+			
+			OpenCAGELevelViewer::AllInOne::Contributions::renderLicenses();
 
 			ImGui::EndPopup();
 		}
@@ -923,6 +985,13 @@ int handoff(char **argv, int argc) {
 
 					ImGui::EndCombo();
 				}
+
+				
+				ImGui::DragFloat("Font Size", &newFontSize, 1.0f, 13.0f, 50.0f);
+					//newFontSize = 
+					//loadStdFont(OpenCAGELevelViewer::AllInOne::Configuration::configuration.fontSize, io);
+				if (ImGui::IsItemDeactivatedAfterEdit())
+					newFontSizeSelected = true;
 			}
 			ImGui::End();
 		}
@@ -1193,7 +1262,24 @@ int handoff(char **argv, int argc) {
 					}
 					ImGui::EndCombo();
 				}
-				ImGui::Checkbox("Ignore Col W (Alpha)", &OpenCAGELevelViewer::_3DView::ignoreColW);
+				ImGui::SetItemTooltip("Sets the way objects are coloured.\n"
+									  "You should generally keep this on \"Material Based\" unless you have to (typically for debugging).");
+
+				ImGui::Checkbox("Ignore Material/Vertex Alpha", &OpenCAGELevelViewer::_3DView::ignoreColW);
+				ImGui::SetItemTooltip("If set, ignores any alpha attribute (after all processing) and renders all objects as fully opaque.\n"
+									  "Any semitransparent objects are rendered as magenta.\n"
+									  "Setting this setting OFF is not recommended.");
+
+				ImGui::Checkbox("Keep Unrenderables", &OpenCAGELevelViewer::_3DView::keepUnrenderables);
+				ImGui::SetItemTooltip("An unrenderable is anything that isn't directly rendered as part of the scene.\n"
+									  "Some examples include volumetric lighting and shadow catchers.\n"
+									  "Since unrenderables do not have diffuse colours, they are rendered as the hash of their Shader ID.");
+
+				ImGui::SameLine();
+				ImGui::BeginDisabled();
+				ImGui::Button("Shader ID Reference Table");
+				ImGui::SetItemTooltip("Not yet implemented.");
+				ImGui::EndDisabled();
 				//ImGui::SliderInt();
 				//ImGui::
 
@@ -1273,6 +1359,8 @@ int handoff(char **argv, int argc) {
 							SDL_SetWindowRelativeMouseMode(sdlWindow, true);
 						}
 					}
+					ImGui::SetItemTooltip("Click to focus into 3D View.");
+
 					ImGui::SetCursorPos(currentCursor);
 					ImGui::SetNextItemAllowOverlap();
 
@@ -1353,23 +1441,31 @@ int handoff(char **argv, int argc) {
 
 	SDL_Quit();
 
-	OpenCAGELevelViewer::WebsocketThread::keepThreadActive.clear();
+	//OpenCAGELevelViewer::WebsocketThread::keepThreadActive.clear();
+
+	suspendFlag.clear();
 	OpenCAGELevelViewer::WebsocketThread::willConnect.clear();
 
-	if (websocketThread.joinable()) {
-		try {
-			websocketThread.join();
-		} catch (...) {
-			// std::thread likes to be in a quauntum superposition sometimes...
-			__debugbreak();
-		}
-	}
+	if (websocketThread.joinable())
+		websocketThread.join();
 
-	if (websocketThread.joinable()) {
-		// STILL?
-		websocketThread.detach();
-		__debugbreak();
-	}
+	if (contentManagerThread.joinable())
+		contentManagerThread.join();
+
+	//if (websocketThread.joinable()) {
+	//	try {
+	//		websocketThread.join();
+	//	} catch (...) {
+	//		// std::thread likes to be in a quauntum superposition sometimes...
+	//		__debugbreak();
+	//	}
+	//}
+
+	//if (websocketThread.joinable()) {
+	//	// STILL?
+	//	websocketThread.detach();
+	//	__debugbreak();
+	//}
 
 	return 0;
 }
