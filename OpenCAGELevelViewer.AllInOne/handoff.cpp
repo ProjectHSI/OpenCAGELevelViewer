@@ -28,6 +28,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include <process.h>
+#include <vcruntime.h>
+
 using namespace gl;
 using namespace std::chrono_literals;
 
@@ -241,6 +244,7 @@ bool commandsContentRerenderNeeded = false;
 //}
 
 static void renderCommandsContentWindow() {
+
 	if (commandsEditorDependent.test())
 		return;
 
@@ -253,11 +257,11 @@ static void renderCommandsContentWindow() {
 				commandsContentRerenderNeeded = true;
 
 			//{
-			static size_t combinedHash = 0;
-			//static bool commandsContentNeedsUpdate = true;
+				static size_t combinedHash = 0;
+				//static bool commandsContentNeedsUpdate = true;
 
-			if (combinedHash != OpenCAGELevelViewer::AllInOne::combineHash(OpenCAGELevelViewer::AllInOne::ContentManager::getGameRootHash(), OpenCAGELevelViewer::AllInOne::ContentManager::getLevelHash()))
-				commandsContentRerenderNeeded = true;
+				if (combinedHash != OpenCAGELevelViewer::AllInOne::combineHash(OpenCAGELevelViewer::AllInOne::ContentManager::getGameRootHash(), OpenCAGELevelViewer::AllInOne::ContentManager::getLevelHash()))
+					commandsContentRerenderNeeded = true;
 			//}
 
 			if (commandsContentRerenderNeeded)
@@ -323,6 +327,8 @@ int handoff(char **argv, int argc) {
 	// force c++/cli to initalise here.
 	// if c++/cli isn't initalised, debugging becomes very strange.
 	forceCoreClr();
+
+	//__security_init_cookie();
 
 	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_GAMEPAD) < 0) {
 		fatalSdlError("SDL3 was unable to initalize one or more of its subsystems.");
@@ -745,6 +751,8 @@ int handoff(char **argv, int argc) {
 		ImGui_ImplSDL3_NewFrame();
 		ImGui::NewFrame();
 
+	//#if 0
+
 		if (commandsEditorDependent.test()) {
 			if (!OpenCAGELevelViewer::WebsocketThread::willConnect.test())
 				OpenCAGELevelViewer::WebsocketThread::willConnect.test_and_set();
@@ -752,8 +760,6 @@ int handoff(char **argv, int argc) {
 			if (OpenCAGELevelViewer::WebsocketThread::willConnect.test())
 				OpenCAGELevelViewer::WebsocketThread::willConnect.clear();
 		}
-
-		//#if 0
 
 			//ImGui::ShowDemoWindow(&isDemoWindowOpen);
 
@@ -975,7 +981,7 @@ int handoff(char **argv, int argc) {
 					};
 
 				if (ImGui::BeginCombo("VSync", getSwapIntervalString(OpenCAGELevelViewer::AllInOne::Configuration::configuration.vsync))) {
-					for (int8_t i = -1; i <= 1; i++) {
+					for (int8_t i = -1; i <= 1 && i >= -1; i++) {
 						if (ImGui::Selectable(getSwapIntervalString(i), OpenCAGELevelViewer::AllInOne::Configuration::configuration.vsync == i))
 							SDL_GL_SetSwapInterval(i);
 
@@ -1062,9 +1068,13 @@ int handoff(char **argv, int argc) {
 			ImGui::End();
 		}
 
-		// Commands Content
-		renderCommandsContentWindow();
+	//#endif
 
+		// Commands Content
+		//renderCommandsContentWindow();
+
+	//#if 0
+		
 		// Composite Tree
 		{
 			//if (contentManagerState->unmanagedComposite.has_value()) {
@@ -1404,7 +1414,11 @@ int handoff(char **argv, int argc) {
 
 	#pragma endregion
 
+	//#endif
+		
 		ImGui::ShowDemoWindow();
+
+	
 
 		glViewport(0, 0, ( int ) io.DisplaySize.x, ( int ) io.DisplaySize.y);
 		glClearColor(0, 0, 0, 0);
@@ -1466,6 +1480,8 @@ int handoff(char **argv, int argc) {
 	//	websocketThread.detach();
 	//	__debugbreak();
 	//}
+
+	//std::exit(0);
 
 	return 0;
 }

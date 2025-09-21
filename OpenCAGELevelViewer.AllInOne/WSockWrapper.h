@@ -23,7 +23,7 @@ namespace OpenCAGELevelViewer {
 	namespace WSockWrapper {
 		class WSAError : public std::system_error {
 		public:
-			const int functionReturnCode;
+			const uint64_t functionReturnCode;
 			WSAError(int errorCode, int wsaCode) : std::system_error(std::error_code(wsaCode, std::system_category())), functionReturnCode(errorCode) { }
 		};
 

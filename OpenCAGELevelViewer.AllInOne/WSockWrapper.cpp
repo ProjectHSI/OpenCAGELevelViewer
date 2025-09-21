@@ -363,7 +363,7 @@ std::vector<char> OpenCAGELevelViewer::WSockWrapper::Socket::Recv() const {
 }
 
 void OpenCAGELevelViewer::WSockWrapper::Socket::Send(const std::vector<char> &data) const {
-	int ret = send(_socket, data.data(), data.size(), 0);
+	auto ret = send(_socket, data.data(), data.size(), 0);
 	if (ret == SOCKET_ERROR) {
 		throw OpenCAGELevelViewer::WSockWrapper::WSAError(ret, WSAGetLastError());
 	}

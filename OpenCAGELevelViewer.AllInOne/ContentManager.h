@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef _M_CEE
+//#pragma message This module has reduced functionality.
+#endif
+
 #include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
@@ -8,12 +12,14 @@
 #include <cstdint>
 #include <glm/fwd.hpp>
 #include <map>
-#include <msclr/gcroot.h>
-#include <msclr/auto_gcroot.h>
 #include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
+
+#ifdef _M_CEE
+#include <msclr/gcroot.h>
+#endif
 
 namespace OpenCAGELevelViewer {
 	namespace AllInOne {
@@ -64,11 +70,13 @@ namespace OpenCAGELevelViewer {
 			};
 		#pragma pack()
 
+		#ifdef _M_CEE
 			typedef System::Numerics::Vector3 ManagedVector3;
 			ref struct ManagedTransform {
 				ManagedVector3 position {};
 				ManagedVector3 rotation {};
 			};
+		#endif
 
 			typedef glm::vec3 Vector3;
 			struct Transform {
@@ -77,14 +85,17 @@ namespace OpenCAGELevelViewer {
 
 				Transform() = default;
 
+			#ifdef _M_CEE
 				Transform(const ManagedTransform ^managedTransform)
 				{
 					position = {managedTransform->position.X, managedTransform->position.Y, managedTransform->position.Z};
 					rotation = {managedTransform->rotation.X, managedTransform->rotation.Y, managedTransform->rotation.Z};
 				}
+			#endif
 			};
 
-			typedef ref struct EntityDataValue;
+		#ifdef _M_CEE
+			ref struct EntityDataValue;
 			typedef System::Collections::Generic::Dictionary < CATHODE::Scripting::ShortGuid, EntityDataValue ^ > ShortGuidEntityMap;
 
 			ref struct EntityDataValue {
@@ -103,6 +114,7 @@ namespace OpenCAGELevelViewer {
 				ShortGuidEntityMap ^children = gcnew ShortGuidEntityMap(0);
 				CATHODE::Scripting::Composite ^composite = nullptr;
 			};
+		#endif
 
 			enum CMStatusEnum {
 				READY,
@@ -114,6 +126,7 @@ namespace OpenCAGELevelViewer {
 				CMStatusEnum currentStatus;
 			};
 
+		#ifdef _M_CEE
 			ref struct LevelContent {
 				size_t combinedHash;
 				CATHODE::Commands ^Commands;
@@ -123,22 +136,27 @@ namespace OpenCAGELevelViewer {
 				CATHODE::LEGACY::ShadersPAK ^Shaders;
 				CATHODE::RenderableElements ^Renderables;
 			};
+		#endif
 
 			extern std::atomic < CMStatus > cmStatus;
 			extern std::recursive_mutex cmMutex;
 
+		#ifdef _M_CEE
 			extern msclr::gcroot < System::Collections::Generic::List < System::Collections::Generic::List < CATHODE::Scripting::ShortGuid > ^ > ^ > compositesById;
 			extern std::map < uint64_t, std::pair < CMModel, std::vector < std::pair < uint64_t, size_t > > > > models;
 			extern std::map < uint64_t, CMMaterial > materials;
+		
 			extern std::map < uint64_t, std::pair < msclr::gcroot < ModelReferenceDataValue ^ >, std::vector < ModelReferenceGL > > > modelReferences;
 			extern msclr::gcroot < CompositeDataValue ^ > entityDataRoot;
 			extern msclr::gcroot < LevelContent ^ > levelContentInstance;
+		#endif
 
 			/*struct Vec3Transform {
 				glm::vec3 position {};
 				glm::vec3 rotation {};
 			};*/
 
+		
 			void setGameRoot(const std::string &gameRoot);
 			std::string getGameRoot();
 			// helper function to prevent cloning

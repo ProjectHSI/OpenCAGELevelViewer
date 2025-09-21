@@ -825,6 +825,8 @@ static void CascadeEntity(OpenCAGELevelViewer::AllInOne::ContentManager::Composi
 								}
 								break;
 							}
+						default:
+							break;
 					}
 				} else {
 					// composite
@@ -876,6 +878,8 @@ static void CascadeEntity(OpenCAGELevelViewer::AllInOne::ContentManager::Composi
 
 				break;*/
 			}
+		default:
+			break;
 	}
 }
 

@@ -2,8 +2,13 @@
 //
 
 #include <handoff.h>
+#include <iostream>
 
 int main(char **argv, int argc)
 {
-    return handoff(argv, argc);
+    int exit = handoff(argv, argc);
+
+    std::cout << exit << std::endl;
+
+    return exit;
 }

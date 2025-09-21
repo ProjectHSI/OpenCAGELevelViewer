@@ -267,7 +267,7 @@ static void handleMessage(const std::string &data/*beast::error_code const& ec, 
 // WILL I HAVE TO IMPLEMENT EVERYTHING MYSELF?
 
 
-constexpr const char getBase64CharFromByte(const unsigned char byte) {
+constexpr static const char getBase64CharFromByte(const unsigned char byte) {
 	if (byte >= 0 && byte <= 25) {
 		return 'A' + byte;
 	} else if (byte >= 26 && byte <= 51) {
@@ -285,7 +285,7 @@ constexpr const char getBase64CharFromByte(const unsigned char byte) {
 
 typedef char Base64Digit;
 
-constexpr std::string generateBase64String(const std::vector<Base64Digit> &data) {
+constexpr static std::string generateBase64String(const std::vector<Base64Digit> &data) {
 	std::string buffer;
 
 	for (size_t i = 0; i < data.size() / 3; i++) {
@@ -755,7 +755,7 @@ static void processWebsocketMessage(std::vector<char> &data) {
 	data.erase(data.begin(), data.begin() + headerSize + payloadLength);
 }
 
-void OpenCAGELevelViewer::WebsocketThread::main(const std::atomic_flag &suspendFlag) {
+void OpenCAGELevelViewer::WebsocketThread::main(std::atomic_flag &suspendFlag) {
 #ifndef NDEBUG
 	assert(base64Tests());
 #endif

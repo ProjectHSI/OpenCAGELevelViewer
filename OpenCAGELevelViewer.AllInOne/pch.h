@@ -21,6 +21,7 @@
 #undef min
 #undef max
 
+#pragma managed(push, off)
 #include <vector>
 #include <map>
 #include <unordered_map>
@@ -34,9 +35,6 @@
 #include <cstdint>
 #include <type_traits>
 
-#include <msclr/gcroot.h>
-#include <msclr/marshal.h>
-
 #include <SDL3/SDL.h>
 
 #include <glbinding/CallbackMask.h>
@@ -49,6 +47,12 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#pragma managed(pop)
+
+#ifdef _M_CEE
+#include <msclr/gcroot.h>
+#include <msclr/marshal.h>
+#endif
 
 #define IMGUI_DEFINE_MATH_OPERATORS
 
@@ -64,6 +68,7 @@ namespace OpenCAGELevelViewer::AllInOne {
 	}
 #pragma managed(pop)
 
+#ifdef _M_CEE
 	template < typename T >
 	constexpr std::vector < T > convertCliArray(array < T > ^tArray) {
 		std::vector < T > tVector = std::vector < T >(tArray->Length);
@@ -71,11 +76,14 @@ namespace OpenCAGELevelViewer::AllInOne {
 
 		return tVector;
 	}
+#endif
 }
 
+#ifdef _M_CEE
 extern msclr::gcroot< msclr::interop::marshal_context ^ > msclr_context;
 
 #define MarshalCliString(cliString) msclr_context->marshal_as<const char *>(cliString)
 #define ConvertCliStringToCXXString(cliString) std::string(MarshalCliString(cliString))
+#endif
 
 #endif //PCH_H

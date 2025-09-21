@@ -13,7 +13,7 @@ namespace OpenCAGELevelViewer.AllInOne.CSManaged
 
     */
 
-    struct ManagedCMModel
+    /*struct ManagedCMModel
     {
         public List<Vector3> vertices;
 		public List<ushort> indices;
@@ -109,7 +109,7 @@ namespace OpenCAGELevelViewer.AllInOne.CSManaged
 									switch (format.ShaderSlot)
 									{
 										case VBFE_InputSlot.UV:
-											/*if (format.VariantIndex == 0) uv0.Add(v);
+											if (format.VariantIndex == 0) uv0.Add(v);
 											else if (format.VariantIndex == 1)
 											{
 												// TODO: We can figure this out based on AlienVBFE.
@@ -118,7 +118,7 @@ namespace OpenCAGELevelViewer.AllInOne.CSManaged
 											}
 											else if (format.VariantIndex == 2) uv2.Add(v);
 											else if (format.VariantIndex == 3) uv3.Add(v);
-											else if (format.VariantIndex == 7) uv7.Add(v);*/
+											else if (format.VariantIndex == 7) uv7.Add(v);
 											break;
 									}
 									break;
@@ -165,5 +165,5 @@ namespace OpenCAGELevelViewer.AllInOne.CSManaged
 		}
 
         public void Dummy() { }
-    }
+    }*/
 }

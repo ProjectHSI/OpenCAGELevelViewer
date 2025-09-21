@@ -28,6 +28,6 @@ namespace OpenCAGELevelViewer {
 
 		extern std::recursive_mutex commandsEditorStateMutex;
 
-		void main(const std::atomic_flag &suspendFlag);
+		void main(std::atomic_flag &suspendFlag);
 	}
 }
