@@ -315,8 +315,8 @@ static void loadStdFont(float size, ImGuiIO &io) {
 	io.FontDefault = stdFont;
 
 	io.Fonts->Build();
-	ImGui_ImplOpenGL3_DestroyFontsTexture();
-	ImGui_ImplOpenGL3_CreateFontsTexture();
+	//ImGui_ImplOpenGL3_DestroyFontsTexture();
+	//ImGui_ImplOpenGL3_CreateFontsTexture();
 
 	//return
 	

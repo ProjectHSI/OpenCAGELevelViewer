@@ -19,6 +19,9 @@
     <Filter Include="Header Files\ContentManager">
       <UniqueIdentifier>{1f6a0249-e76d-4d64-b7be-587624cdcb4c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="VCPKG Triplets">
+      <UniqueIdentifier>{be5f7cac-4558-4aed-82e1-317f091a5ccd}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="framework.h">
@@ -132,6 +135,19 @@
     </None>
     <None Include="IntegerSelectPassthrough.frag">
       <Filter>Resource Files</Filter>
+    </None>
+    <None Include="vcpkg-configuration.json" />
+    <None Include="OverlayTriplets\x86-windows.cmake">
+      <Filter>VCPKG Triplets</Filter>
+    </None>
+    <None Include="OverlayTriplets\x64-windows.cmake">
+      <Filter>VCPKG Triplets</Filter>
+    </None>
+    <None Include="OverlayTriplets\static-linkage.cmake">
+      <Filter>VCPKG Triplets</Filter>
+    </None>
+    <None Include="OverlayTriplets\arm64-windows.cmake">
+      <Filter>VCPKG Triplets</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

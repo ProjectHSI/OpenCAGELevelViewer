@@ -1,0 +1,34 @@
+<Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="Release" />
+    <BuildType Name="Sanitised" />
+    <Platform Name="Any CPU" />
+    <Platform Name="ARM64" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/.github/" />
+  <Folder Name="/.github/workflows/">
+    <File Path=".github/workflows/build.yml" />
+    <File Path=".github/workflows/codeql.yml" />
+  </Folder>
+  <Folder Name="/AllInOne/">
+    <Project Path="OpenCAGELevelViewer.AllInOne.HandOff/OpenCAGELevelViewer.AllInOne.HandOff.vcxproj" Id="8c877bcb-a58f-4487-9f31-12d62542c1b5" />
+    <Project Path="OpenCAGELevelViewer.AllInOne/OpenCAGELevelViewer.AllInOne.vcxproj" Id="9f4b18f5-cfa9-43fd-bdc5-17ff9476a6c1" />
+  </Folder>
+  <Folder Name="/External/">
+    <Project Path="ExtMSBuildImports/cryptopp/cryptlib.vcxproj" Id="c39f4b46-6e89-4074-902e-ca57073044d2">
+      <BuildType Solution="Sanitised|*" Project="Debug" />
+      <Platform Solution="*|ARM64" Project="x64" />
+    </Project>
+  </Folder>
+  <Folder Name="/MSBuild Scripts/">
+    <File Path="Directory.Build.props" />
+  </Folder>
+  <Folder Name="/Utility/">
+    <Project Path="OpenCAGELevelViewer.AllInOne.UtilityTest/OpenCAGELevelViewer.AllInOne.UtilityTest.vcxproj" Id="75b35219-1061-43eb-8b4d-f22c7c858ada">
+      <Platform Solution="*|ARM64" Project="x64" />
+    </Project>
+  </Folder>
+</Solution>

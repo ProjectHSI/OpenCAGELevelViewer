@@ -1,3 +1,6 @@
 [submodule "CathodeLib"]
 	path = CathodeLib
 	url = https://github.com/ProjectHSI/CathodeLib.git
+[submodule "ExtMSBuildImports/cryptopp"]
+	path = ExtMSBuildImports/cryptopp
+	url = https://github.com/weidai11/cryptopp.git

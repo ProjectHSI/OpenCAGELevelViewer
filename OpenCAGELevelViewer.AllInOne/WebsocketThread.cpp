@@ -255,7 +255,7 @@ static void handleMessage(const std::string &data/*beast::error_code const& ec, 
 		- ixwebsocket             - Doesn't connect
 		- brynet                  - Doesn't connect
 		- libdatachannel          - Doesn't connect
-		- WebsocketPP/++          - I forgot how this one didn't work, I think it doesn't connect.
+		- WebsocketPP/++          - Crashes.
 */
 
 //template<typename T>
