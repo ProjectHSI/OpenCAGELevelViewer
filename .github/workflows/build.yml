@@ -31,7 +31,7 @@ jobs:
   build:
     strategy:
       matrix:
-        configuration: [Release, Debug]
+        configuration: [Release, Debug, Sanitised]
         architecture: [x86, x64, ARM64]
 
       fail-fast: false
@@ -67,7 +67,9 @@ jobs:
         New-Item -ItemType Directory ${{env.OCLV_VCPKG_CACHE_DIR}}/assets -ea SilentlyContinue
         New-Item -ItemType Directory ${{env.OCLV_MSBUILD_CACHE_DIR}}/     -ea SilentlyContinue
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
+      with:
+        submodules: recursive        
 
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v2
