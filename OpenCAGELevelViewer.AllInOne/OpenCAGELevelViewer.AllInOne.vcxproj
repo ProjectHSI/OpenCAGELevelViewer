@@ -38,9 +38,6 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
-  <Target Name="OCLVMessageProjectDirectory" BeforeTargets="ClCompile">
-    <Message Text="OCLVMSBuildProjectDirectory: $(MSBuildProjectDirectory)" Importance="high" />
-  </Target>
   <!-- Configuration-Independent -->
   <PropertyGroup>
     <!-- MSBuild -->
@@ -49,8 +46,8 @@
     <RootNamespace>OpenCAGELevelViewerAllInOne</RootNamespace>
     <!-- MSBuild and VC++ Versions -->
     <VCProjectVersion>17.0</VCProjectVersion>
-    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <WindowsTargetPlatformMinVersion>8.0</WindowsTargetPlatformMinVersion>
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformMinVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformMinVersion>
     <VCToolsVersion />
     <PlatformToolset>v145</PlatformToolset>
     <!-- CLR -->
@@ -60,7 +57,7 @@
     <!-- Win32 -->
     <CharacterSet>Unicode</CharacterSet>
     <!-- Compilation Settings -->
-    <EnableUnitySupport>true</EnableUnitySupport>
+    <EnableUnitySupport>false</EnableUnitySupport>
     <UseOfMfc>false</UseOfMfc>
     <!-- Code Analysis-->
     <RunCodeAnalysis>true</RunCodeAnalysis>
@@ -85,10 +82,10 @@
       <WarningLevel>Level4</WarningLevel>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>OpenCAGELevelViewer_AllInOne_EXPORTS;OPENCAGELEVELVIEWER_ALLINONE_EXPORTS;WIN32;OPENCAGELEVELVIEWERALLINONE_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-			<AdditionalIncludeDirectories>$(MSBuildProjectDirectory)\..\ExtMSBuildImports;$(ProtobufCompiledDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(MSBuildProjectDirectory)\..\ExtMSBuildImports;$(ProtobufCompiledDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <!--<PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>-->
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <EnablePREfast>true</EnablePREfast>
@@ -107,7 +104,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Sanitised'">
     <ClCompile>
-      <PreprocessorDefinitions>_DISABLE_VECTOR_ANNOTATION;_DISABLE_STRING_ANNOTATION;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
   <!-- Release Configuration -->
@@ -167,7 +164,7 @@
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="handoff.cpp" />
     <ClCompile Include="pch.cpp">
-      <PrecompiledHeader>Create</PrecompiledHeader>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="WebsocketThread.cpp">
@@ -228,11 +225,7 @@
     <PackageReference Include="CathodeLib">
       <Version>0.10.0</Version>
     </PackageReference>
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\ExtMSBuildImports\cryptopp\cryptlib.vcxproj">
-      <Project>{c39f4b46-6e89-4074-902e-ca57073044d2}</Project>
-    </ProjectReference>
+    <ProjectReference Include="$(MSBuildProjectDirectory)\..\ExtMSBuildImports\cryptopp\cryptlib.vcxproj" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

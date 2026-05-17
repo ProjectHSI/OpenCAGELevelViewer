@@ -3,7 +3,6 @@
     <BuildType Name="Debug" />
     <BuildType Name="Release" />
     <BuildType Name="Sanitised" />
-    <Platform Name="Any CPU" />
     <Platform Name="ARM64" />
     <Platform Name="x64" />
     <Platform Name="x86" />
@@ -19,12 +18,14 @@
   </Folder>
   <Folder Name="/External/">
     <Project Path="ExtMSBuildImports/cryptopp/cryptlib.vcxproj" Id="c39f4b46-6e89-4074-902e-ca57073044d2">
-      <BuildType Solution="Sanitised|*" Project="Debug" />
       <Platform Solution="*|ARM64" Project="x64" />
     </Project>
   </Folder>
   <Folder Name="/MSBuild Scripts/">
     <File Path="Directory.Build.props" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".gitignore" />
   </Folder>
   <Folder Name="/Utility/">
     <Project Path="OpenCAGELevelViewer.AllInOne.UtilityTest/OpenCAGELevelViewer.AllInOne.UtilityTest.vcxproj" Id="75b35219-1061-43eb-8b4d-f22c7c858ada">
