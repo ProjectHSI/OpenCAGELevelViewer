@@ -71,6 +71,10 @@ jobs:
       with:
         submodules: recursive        
 
+    - name: Patch Submodules
+      shell: pwsh
+      run: ./ExternalPatcher.ps1
+
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v3
       with:
