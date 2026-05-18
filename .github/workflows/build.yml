@@ -74,6 +74,7 @@ jobs:
     - name: Patch Submodules
       shell: pwsh
       run: ./ExternalPatcher.ps1
+      continue-on-error: true
 
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v3
