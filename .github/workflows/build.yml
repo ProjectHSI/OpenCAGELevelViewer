@@ -74,7 +74,6 @@ jobs:
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v3
       with:
-        vs-version: '[18.7,18.8)'
         vs-prerelease: true
 
     - name: Install vcpkg
