@@ -1097,7 +1097,7 @@ int handoff(char **argv, int argc) {
 								if (std::holds_alternative<OpenCAGELevelViewer::ContentManager::UnmanagedModelReference>(newEntity)) {
 									if (ImGui::TreeNodeEx(("Function Entity \"" + std::get< OpenCAGELevelViewer::ContentManager::UnmanagedModelReference >(newEntity).name + "\" (ModelReference)").c_str())) {
 										//ImGui::CollapsingHeader()
-										ImGui::InputDouble("Position X", &unmanagedComposite.transform.position.x);
+										ImGui::InputDouble("Position X", &unmanagedComposite.transform.position.x); 
 										ImGui::InputDouble("Position Y", &unmanagedComposite.transform.position.y);
 										ImGui::InputDouble("Position Z", &unmanagedComposite.transform.position.z);
 										ImGui::InputDouble("Rotation X", &unmanagedComposite.transform.rotation.x);
