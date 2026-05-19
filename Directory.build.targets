@@ -1,5 +1,0 @@
-<Project InitialTargets="PatchSubmodules">
-  <Target Name="PatchSubmodules">
-    <Exec ConsoleToMsBuild="true" Command="$(SolutionDir)/ExternalPatcher.ps1" />
-  </Target>
-</Project>

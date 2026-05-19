@@ -26,7 +26,6 @@
   </Folder>
   <Folder Name="/MSBuild Scripts/">
     <File Path="Directory.Build.props" />
-    <File Path="Directory.build.targets" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".gitattributes" />
