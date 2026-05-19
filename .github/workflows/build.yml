@@ -84,9 +84,9 @@ jobs:
     - name: Install vcpkg
       run: vcpkg integrate install
 
-    - name: .NET Restore
+    - name: Restore NuGet packages
       working-directory: ${{ github.workspace }}
-      run: dotnet restore
+      run: nuget restore
 
     - name: Build
       working-directory: ${{ github.workspace }}
