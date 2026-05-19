@@ -1071,7 +1071,7 @@ int handoff(char **argv, int argc) {
 	//#endif
 
 		// Commands Content
-		//renderCommandsContentWindow();
+		renderCommandsContentWindow();
 
 	//#if 0
 		
